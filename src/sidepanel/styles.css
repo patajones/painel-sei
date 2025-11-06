@@ -1,0 +1,159 @@
+:root {
+  --sei-blue: #1c5a8a;
+  --sei-blue-dark: #143d5f;
+  --sei-gray: #f5f5f5;
+  --sei-border: #ddd;
+  --sei-text: #333;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+  color: var(--sei-text);
+  background: white;
+  overflow-x: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.sei-header {
+  background: linear-gradient(to bottom, var(--sei-blue) 0%, var(--sei-blue-dark) 100%);
+  color: white;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sei-header-logo {
+  font-weight: bold;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.sei-header-subtitle {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.welcome-message {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: #666;
+  background: var(--sei-gray);
+}
+
+.current-site-banner {
+  background: #e8f4f8;
+  border-bottom: 2px solid var(--sei-blue);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.current-site-label {
+  color: #666;
+  font-size: 12px;
+}
+
+.current-site-url {
+  font-weight: 600;
+  color: var(--sei-blue);
+}
+
+.section-title {
+  padding: 1rem 1rem 0.5rem;
+  font-weight: 600;
+  color: var(--sei-blue-dark);
+  border-bottom: 1px solid var(--sei-border);
+  background: var(--sei-gray);
+}
+
+.sites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.site-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--sei-border);
+  transition: background 0.2s;
+}
+
+.site-item:hover {
+  background: var(--sei-gray);
+}
+
+.site-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.site-name {
+  font-weight: 500;
+  color: var(--sei-text);
+}
+
+.site-url {
+  font-size: 11px;
+  color: #888;
+}
+
+.site-dates {
+  font-size: 10px;
+  color: #999;
+}
+
+.navigate-btn {
+  background: var(--sei-blue);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.navigate-btn:hover {
+  background: var(--sei-blue-dark);
+}
+
+.navigate-btn:active {
+  transform: scale(0.98);
+}
+
+.empty-state {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  color: #ccc;
+  margin-bottom: 1rem;
+}
+
+.empty-state-text {
+  color: #999;
+  line-height: 1.5;
+}

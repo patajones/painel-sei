@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Painel SEI",
+  "version": "1.0.0",
+  "description": "Extensão de navegador para incrementar a experiência de um usuário SEI",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

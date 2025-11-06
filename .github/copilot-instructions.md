@@ -17,8 +17,8 @@ Painel SEI is a browser extension designed to enhance the user experience for SE
 - Keep security in mind when handling user data and permissions
 
 ### Code Style
-- Use consistent indentation (2 or 4 spaces)
-- Use meaningful variable and function names in Portuguese or English
+- Use 2 spaces for indentation
+- Use meaningful variable and function names (prefer Portuguese for user-facing elements, English for technical terms)
 - Add comments for complex logic or non-obvious implementations
 - Follow ESLint rules if configured in the project
 
@@ -52,6 +52,6 @@ Painel SEI is a browser extension designed to enhance the user experience for SE
 
 ## Contribution Workflow
 1. Create feature branches for new work
-2. Write meaningful commit messages in Portuguese or English
+2. Write meaningful commit messages in Portuguese (preferred for consistency)
 3. Test thoroughly before submitting pull requests
 4. Keep changes focused and atomic

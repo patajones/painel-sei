@@ -18,8 +18,8 @@ Painel SEI is a browser extension designed to enhance the user experience for SE
 
 ### Code Style
 - Use 2 spaces for indentation
-- Use meaningful variable and function names (prefer Portuguese for user-facing elements, English for technical terms)
-- Add comments for complex logic or non-obvious implementations
+- Use meaningful variable and function names (prefer Portuguese for domain-specific terms and user-facing elements, English for generic technical terms)
+- Add comments for complex logic or non-obvious implementations in Portuguese
 - Follow ESLint rules if configured in the project
 
 ### Browser Extension Best Practices

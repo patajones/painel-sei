@@ -5,7 +5,22 @@ export default defineManifest(async () => ({
   name: 'Painel SEI',
   description: 'Painel lateral inteligente para SEI: detecção automática de sites SEI e visão rápida.',
   version: '0.1.0',
-  permissions: ['storage', 'tabs', 'sidePanel', 'scripting'],
+  icons: {
+    16: 'icons/icon.png',
+    48: 'icons/icon.png',
+    128: 'icons/icon.png',
+  },
+  action: {
+    default_title: 'Painel SEI'
+  },
+  commands: {
+    '_execute_action': {
+      suggested_key: {
+        default: 'Ctrl+Shift+S'
+      }
+    }
+  },
+  permissions: ['storage', 'tabs', 'sidePanel', 'scripting', 'contextMenus'],
   host_permissions: ['<all_urls>'],
   background: {
     service_worker: 'src/background/index.ts'

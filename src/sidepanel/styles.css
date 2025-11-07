@@ -1,9 +1,9 @@
 :root {
-  --sei-blue: #1c5a8a;
-  --sei-blue-dark: #143d5f;
+  --sei-blue: #0494c7;
+  --sei-blue-dark: #155f9b;
   --sei-gray: #f5f5f5;
   --sei-border: #ddd;
-  --sei-text: #333;
+  --sei-text: #001a23;
 }
 
 * {
@@ -34,6 +34,14 @@ body {
   align-items: center;
   gap: 0.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sei-logo-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
+  object-fit: cover;
 }
 
 .sei-header-logo {
@@ -119,7 +127,7 @@ body {
 
 .site-dates {
   font-size: 10px;
-  color: #999;
+  color: #5e5d5d;
 }
 
 .navigate-btn {

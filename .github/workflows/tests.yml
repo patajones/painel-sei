@@ -48,13 +48,6 @@ jobs:
             grep -E "Test Files|Tests|Duration" test-output.txt | head -3 >> $GITHUB_STEP_SUMMARY || echo "Tests executed successfully" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Módulos Testados:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ \`isSeiUrl()\` - detecção de URLs SEI (14 testes)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ \`extractSeiBaseUrl()\` - normalização de URLs (14 testes)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ \`getSeiSites()\` - recuperação de sites (2 testes)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ \`upsertSeiSite()\` - persistência de dados (4 testes)" >> $GITHUB_STEP_SUMMARY
       
       - name: Build extension
         run: npm run build

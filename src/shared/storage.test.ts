@@ -55,40 +55,43 @@ describe('Storage Utils', () => {
 
   describe('upsertSeiSite', () => {
     it('deve adicionar novo site quando não existe', async () => {
-      const url = 'https://sei.example.com';
+      const url = 'https://sei.example.com/sei/controlador.php';
       const name = 'SEI Exemplo';
 
       const sites = await upsertSeiSite(url, name);
 
       expect(sites).toHaveLength(1);
-      expect(sites[0].url).toBe(url);
+      expect(sites[0].url).toBe('https://sei.example.com');
       expect(sites[0].name).toBe(name);
       expect(sites[0].firstDetectedAt).toBeDefined();
       expect(sites[0].lastVisitedAt).toBeDefined();
     });
 
     it('deve atualizar lastVisitedAt de site existente', async () => {
-      const url = 'https://sei.example.com';
+      const url = 'https://sei.example.com/sei/teste';
       const oldDate = '2025-01-01T00:00:00.000Z';
       
       mockStorage.seiSites = [
-        { url, firstDetectedAt: oldDate, lastVisitedAt: oldDate }
+        { url: 'https://sei.example.com', firstDetectedAt: oldDate, lastVisitedAt: oldDate }
       ];
 
+      // Aguarda 1ms para garantir timestamp diferente
+      await new Promise(resolve => setTimeout(resolve, 1));
+      
       const sites = await upsertSeiSite(url);
 
       expect(sites).toHaveLength(1);
-      expect(sites[0].url).toBe(url);
+      expect(sites[0].url).toBe('https://sei.example.com');
       expect(sites[0].firstDetectedAt).toBe(oldDate);
       expect(sites[0].lastVisitedAt).not.toBe(oldDate);
     });
 
     it('deve preservar name existente quando não fornecido', async () => {
-      const url = 'https://sei.example.com';
+      const url = 'https://sei.example.com/sei/controlador.php';
       const name = 'Nome Original';
       
       mockStorage.seiSites = [
-        { url, name, firstDetectedAt: '2025-01-01', lastVisitedAt: '2025-01-01' }
+        { url: 'https://sei.example.com', name, firstDetectedAt: '2025-01-01', lastVisitedAt: '2025-01-01' }
       ];
 
       const sites = await upsertSeiSite(url);
@@ -97,10 +100,10 @@ describe('Storage Utils', () => {
     });
 
     it('deve atualizar name quando fornecido novo', async () => {
-      const url = 'https://sei.example.com';
+      const url = 'https://sei.example.com/sei/controlador.php';
       
       mockStorage.seiSites = [
-        { url, firstDetectedAt: '2025-01-01', lastVisitedAt: '2025-01-01' }
+        { url: 'https://sei.example.com', firstDetectedAt: '2025-01-01', lastVisitedAt: '2025-01-01' }
       ];
 
       const newName = 'Novo Nome';

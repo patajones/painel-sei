@@ -41,7 +41,5 @@ export type Message =
   | { type: 'app:navigateTo'; url: string }
   /** Broadcast de estado atualizado para UI */
   | { type: 'app:state'; state: AppState }
-  /** Notificação de configurações atualizadas */
-  | { type: 'settings:updated'; settings: { autoOpenSidePanel: boolean } }
-  /** Comando para alternar configuração de auto-open */
-  | { type: 'settings:toggleAutoOpen' };
+  /** Comando para abrir o painel lateral (enviado pelo botão injetado na barra do SEI) */
+  | { type: 'panel:open' };

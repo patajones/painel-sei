@@ -89,8 +89,16 @@ function injectSeiBarButton() {
   // Adiciona evento de clique
   link.addEventListener('click', (e) => {
     e.preventDefault();
+    
+    // Verifica se o contexto da extensão ainda é válido
+    if (!chrome.runtime?.id) {
+      console.warn('[Painel SEI] Extensão foi recarregada. Recarregue a página.');
+      alert('A extensão foi atualizada. Por favor, recarregue a página.');
+      return;
+    }
+    
     // Envia mensagem para o background abrir o painel
-    chrome.runtime.sendMessage({ type: 'panel:open' } as any);
+    chrome.runtime.sendMessage({ type: 'panel:open' } as Message);
   });
   
   navItem.appendChild(link);

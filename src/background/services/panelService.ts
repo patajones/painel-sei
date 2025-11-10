@@ -12,7 +12,7 @@ import { isSeiUrl } from '../../shared/sei';
 
 /**
  * Envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
- * @param currentSiteUrl - URL do site SEI atualmente ativo (opcional)
+ * @param currentSiteUrl - URL do site atualmente ativo (opcional)
  */
 export async function broadcastAppState(currentSiteUrl?: string) {
   const seiSites = await getSeiSites();
@@ -31,8 +31,7 @@ export async function processSeiSiteVisit(tabId: number, url: string, name?: str
     // Garante que só processamos URLs SEI
     if (!isSeiUrl(url)) return;
     await upsertSeiSite(url, name);
-    const settings = await getSettings();
-    // Em vez de abrir automaticamente (bloqueado sem gesto), apenas habilita o side panel para a aba
+    // Habilita o side panel para a aba
     const sidePanel = (chrome as any).sidePanel;
     try {
       await sidePanel.setOptions({ tabId, path: 'src/sidepanel/index.html', enabled: true });

@@ -9,7 +9,6 @@
  */
 
 import type { Message } from '../shared/types';
-import { getSettings, toggleAutoOpen } from '../shared/settings';
 import { getSeiSites } from '../shared/storage';
 import { isSeiUrl } from '../shared/sei';
 import { processSeiSiteVisit, broadcastAppState } from './services/panelService';
@@ -31,14 +30,9 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {
       case 'app:navigateTo':
         await handleNavigateTo(msg);
         break;
-      case 'settings:toggleAutoOpen':
-        await handleToggleAutoOpen();
+      case 'panel:open':
+        await handlePanelOpen(sender);
         break;
-    }
-    
-    // Handler para abertura do painel via botão injetado na barra do SEI
-    if ((msg as any).type === 'panel:open') {
-      await handlePanelOpen(sender);
     }
   })();
   return true; // Indica que a resposta será enviada de forma assíncrona
@@ -114,14 +108,20 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
  * - Verifica se é site SEI
  * - Adiciona à lista de sites SEI
  * - Abre painel lateral se configurado
- * - Atualiza estado do painel
+ * - Atualiza estado do painel (sempre, mesmo que não seja SEI)
  */
 async function handleTabChangeOrNavigation(tabId: number, url?: string) {
   if (!url) return;
   const isSei = isSeiUrl(url);
   console.debug('[Painel SEI] handleTabChangeOrNavigation', { tabId, url, isSei });
-  if (!isSei) return;
-  await processSeiSiteVisit(tabId, url);
+  
+  // Se for site SEI, processa normalmente
+  if (isSei) {
+    await processSeiSiteVisit(tabId, url);
+  } else {
+    // Se não for SEI, apenas faz broadcast do estado com a URL atual
+    await broadcastAppState(url);
+  }
 }
 
 /**
@@ -154,18 +154,6 @@ async function handleNavigateTo(msg: Extract<Message, { type: 'app:navigateTo' }
   if (tab.id) {
     await chrome.tabs.update(tab.id, { url: msg.url });
   }
-}
-
-/**
- * Alterna configuração de abertura automática do painel e atualiza o menu de contexto
- */
-async function handleToggleAutoOpen() {
-  console.debug('[Painel SEI] settings:toggleAutoOpen');
-  const settings = await toggleAutoOpen();
-  chrome.runtime.sendMessage({ type: 'settings:updated', settings } as Message);
-  try {
-    await chrome.contextMenus.update('toggle-auto-open', { checked: settings.autoOpenSidePanel });
-  } catch {}
 }
 
 /**

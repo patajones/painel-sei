@@ -1,112 +1,39 @@
 /**
- * Side Panel - Componente Principal da UI (App)
+ * Side Panel - Componente Principal (App)
  * 
- * Interface React que exibe:
+ * Componente raiz que orquestra a interface do painel lateral:
+ * - Header com logo e título
+ * - Welcome (se não houver sites)
+ * - Banner do site atual (se houver URL ativa)
  * - Lista de sites SEI detectados
- * - Site SEI atualmente ativo
- * - Opções de navegação rápida
  */
 
-import React, { useEffect, useState } from 'react';
-import type { AppState, Message, SeiSite } from '../shared/types';
+import React from 'react';
+import type { Message } from '../shared/types';
+import { useAppState } from './hooks/useAppState';
+import { Welcome } from './components/Welcome';
+import { CurrentSiteBanner } from './components/CurrentSiteBanner';
+import { SitesList } from './components/SitesList';
+import { isSeiUrl } from '../shared/sei';
 import './styles.css';
 
-/**
- * Hook personalizado para gerenciar estado da aplicação
- * Sincroniza com o background script para manter dados atualizados
- * 
- * @returns Estado atual da aplicação (lista de sites e site ativo)
- */
-function useAppState(): AppState {
-  const [state, setState] = useState<AppState>({ seiSites: [] });
-
-  useEffect(() => {
-    // Solicita estado inicial ao abrir o painel
-    chrome.runtime.sendMessage({ type: 'app:getState' } as Message, (resp) => {
-      if (resp?.seiSites) {
-        setState(s => ({ ...s, seiSites: resp.seiSites }));
-      }
-    });
-    
-    // Ouve atualizações de estado enviadas pelo background
-    const handler = (msg: Message) => {
-      if (msg.type === 'app:state') {
-        setState(msg.state);
-      }
-    };
-    chrome.runtime.onMessage.addListener(handler);
-    return () => chrome.runtime.onMessage.removeListener(handler);
-  }, []);
-
-  return state;
-}
-
-/**
- * Componente de boas-vindas exibido quando nenhum site SEI foi detectado ainda
- */
-function Welcome() {
-  return (
-    <div className="welcome-message">
-      <div className="empty-state-icon">📋</div>
-      <div className="empty-state-text">
-        Nenhum site SEI foi adicionado ainda.<br />
-        Navegue para um site SEI para começar.
-      </div>
-    </div>
-  );
-}
-
-/**
- * Lista de sites SEI com botões de navegação
- * 
- * @param sites - Array de sites SEI a serem exibidos
- * @param onNavigate - Callback chamado ao clicar no botão "Acessar"
- */
-function SitesList({ sites, onNavigate }: { sites: SeiSite[]; onNavigate: (url: string) => void }) {
-  if (!sites.length) return null;
-  
-  return (
-    <ul className="sites-list">
-      {sites.map(s => {
-        const lastVisited = new Date(s.lastVisitedAt).toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        });
-        return (
-          <li key={s.url} className="site-item">
-            <div className="site-info">
-              <div className="site-name">{s.name || 'Site SEI'}</div>
-              <div className="site-url">{s.url}</div>
-              <div className="site-dates">Último acesso: {lastVisited}</div>
-            </div>
-            <button className="navigate-btn" onClick={() => onNavigate(s.url)}>
-              Acessar
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/**
- * Componente principal do Side Panel
- * Renderiza cabeçalho, site atual, lista de sites e estados vazios
- */
 export default function App() {
+  // Obtém estado atualizado do hook customizado
   const { seiSites, currentSiteUrl } = useAppState();
 
   /**
-   * Envia comando ao background para navegar a aba ativa para uma URL
+   * Envia comando ao background para navegar a aba ativa
    */
   function navigateTo(url: string) {
-    chrome.runtime.sendMessage({ type: 'app:navigateTo', url } as Message);
+    chrome.runtime.sendMessage({ 
+      type: 'app:navigateTo', 
+      url 
+    } as Message);
   }
 
   return (
     <div className="app-container">
-      {/* Cabeçalho com logo da extensão */}
+      {/* Cabeçalho fixo com logo e título */}
       <header className="sei-header">
         <img
           src={chrome.runtime.getURL('icons/icon.png')}
@@ -116,21 +43,16 @@ export default function App() {
         <div className="sei-header-logo">Painel SEI</div>
       </header>
       
-      {/* Mensagem de boas-vindas quando não há sites */}
-      {!seiSites.length && <Welcome />}
+      {/* Estado vazio: nenhum site detectado ainda */}
+      {seiSites.length === 0 && <Welcome />}
       
-      {/* Banner exibindo o site SEI atualmente ativo */}
-      {currentSiteUrl && (
-        <div className="current-site-banner">
-          <span className="current-site-label">📍 Site atual:</span>
-          <span className="current-site-url">
-            {seiSites.find(s => s.url === currentSiteUrl)?.name || currentSiteUrl}
-          </span>
-        </div>
+      {/* Banner do site atualmente ativo (sempre visível quando há URL) */}
+      {currentSiteUrl && isSeiUrl(currentSiteUrl) && (
+        <CurrentSiteBanner url={currentSiteUrl} sites={seiSites} />
       )}
       
-      {/* Lista de todos os sites SEI detectados */}
-      {seiSites.length > 0 && (
+      {/* Lista de sites SEI: só aparece se o site atual NÃO for SEI */}
+      {currentSiteUrl && !isSeiUrl(currentSiteUrl) && seiSites.length > 0 && (
         <>
           <div className="section-title">Sites SEI Detectados</div>
           <SitesList sites={seiSites} onNavigate={navigateTo} />

@@ -42,10 +42,10 @@ jobs:
           echo "### 🧪 Resultados dos Testes" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Extrai informações do output
+          # Extrai informações do output e remove códigos ANSI
           if [ -f test-output.txt ]; then
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            grep -E "Test Files|Tests|Duration" test-output.txt | head -3 >> $GITHUB_STEP_SUMMARY || echo "Tests executed successfully" >> $GITHUB_STEP_SUMMARY
+            grep -E "Test Files|Tests|Duration" test-output.txt | head -3 | sed 's/\x1b\[[0-9;]*m//g' >> $GITHUB_STEP_SUMMARY || echo "Tests executed successfully" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
       

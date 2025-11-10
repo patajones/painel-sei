@@ -7,6 +7,7 @@
  * - ✅ se for site SEI
  * - 🔃 se for site não-SEI
  * - Nome do site (se disponível) ou URL completa
+ * - Área/setor atual (se disponível)
  */
 
 import React from 'react';
@@ -16,9 +17,10 @@ import { isSeiUrl } from '../../shared/sei';
 interface CurrentSiteBannerProps {
   url: string;
   sites: SeiSite[];
+  area?: string | null;
 }
 
-export function CurrentSiteBanner({ url, sites }: CurrentSiteBannerProps) {
+export function CurrentSiteBanner({ url, sites, area }: CurrentSiteBannerProps) {
   const isSei = isSeiUrl(url);
   const icon = isSei ? '✅' : '🔃';
   const siteName = sites.find(s => s.url === url)?.name || url;
@@ -31,6 +33,16 @@ export function CurrentSiteBanner({ url, sites }: CurrentSiteBannerProps) {
       <span className="current-site-url">
         {siteName}
       </span>
+      {area && (
+        <>
+          <span className="current-site-label">
+            📍 Área:
+          </span>
+          <span className="current-site-area">
+            {area}
+          </span>
+        </>
+      )}
     </div>
   );
 }

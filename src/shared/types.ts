@@ -26,6 +26,8 @@ export type AppState = {
   seiSites: SeiSite[];
   /** URL do site SEI atualmente ativo (opcional) */
   currentSiteUrl?: string;
+  /** Área/setor atual da aba ativa (opcional) */
+  currentArea?: string | null;
 };
 
 /**
@@ -35,6 +37,8 @@ export type AppState = {
 export type Message =
   /** Notificação do content script: site SEI foi detectado */
   | { type: 'sei:detected'; site: { url: string; name?: string } }
+  /** Notificação do content script: área/setor atual foi detectado */
+  | { type: 'context:area-detected'; siteUrl: string; area: string | null }
   /** Solicitação de estado atual (usado pelo side panel ao abrir) */
   | { type: 'app:getState' }
   /** Comando para navegar a aba ativa para uma URL */

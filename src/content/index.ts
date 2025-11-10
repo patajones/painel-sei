@@ -7,6 +7,7 @@
  */
 
 import type { Message } from '../shared/types';
+import { extractSeiBaseUrl } from '../shared/sei';
 
 /**
  * Verifica se a página atual é um site SEI usando diferentes heurísticas
@@ -40,6 +41,7 @@ function isSeiSite(): { matched: boolean; url?: string; name?: string } {
 /**
  * Notifica o background script quando um site SEI é detectado
  * Envia mensagem com URL e nome do órgão (se disponível)
+ * Também detecta e envia a área/setor atual
  */
 function notifyDetection() {
   const det = isSeiSite();
@@ -49,6 +51,9 @@ function notifyDetection() {
   
   // Injeta botão na barra do SEI
   injectSeiBarButton();
+  
+  // Detecta e envia a área/setor atual
+  detectAndNotifyArea();
 }
 
 /**
@@ -110,6 +115,27 @@ function injectSeiBarButton() {
   } else {
     barraD.appendChild(navItem);
   }
+}
+
+/**
+ * Detecta a área/setor atual e notifica o background
+ * Usa a função extractCurrentArea do módulo compartilhado
+ */
+function detectAndNotifyArea() {
+  // Importa dinamicamente para evitar problemas de ordem
+  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl }) => {
+    const area = extractCurrentArea();
+    const siteUrl = extractSeiBaseUrl(location.href);
+    
+    if (siteUrl) {
+      const msg: Message = {
+        type: 'context:area-detected',
+        siteUrl,
+        area
+      };
+      chrome.runtime.sendMessage(msg);
+    }
+  });
 }
 
 // Detecta em diferentes momentos do carregamento da página

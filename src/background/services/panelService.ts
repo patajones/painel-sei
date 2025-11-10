@@ -13,10 +13,11 @@ import { isSeiUrl } from '../../shared/sei';
 /**
  * Envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
  * @param currentSiteUrl - URL do site atualmente ativo (opcional)
+ * @param currentArea - Área/setor atual (opcional)
  */
-export async function broadcastAppState(currentSiteUrl?: string) {
+export async function broadcastAppState(currentSiteUrl?: string, currentArea?: string | null) {
   const seiSites = await getSeiSites();
-  const state: AppState = { seiSites, currentSiteUrl };
+  const state: AppState = { seiSites, currentSiteUrl, currentArea };
   chrome.runtime.sendMessage({ type: 'app:state', state } satisfies Message);
 }
 

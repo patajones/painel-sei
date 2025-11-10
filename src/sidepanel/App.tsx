@@ -19,7 +19,7 @@ import './styles.css';
 
 export default function App() {
   // Obtém estado atualizado do hook customizado
-  const { seiSites, currentSiteUrl } = useAppState();
+  const { seiSites, currentSiteUrl, currentArea } = useAppState();
 
   /**
    * Envia comando ao background para navegar a aba ativa
@@ -48,7 +48,7 @@ export default function App() {
       
       {/* Banner do site atualmente ativo (sempre visível quando há URL) */}
       {currentSiteUrl && isSeiUrl(currentSiteUrl) && (
-        <CurrentSiteBanner url={currentSiteUrl} sites={seiSites} />
+        <CurrentSiteBanner url={currentSiteUrl} sites={seiSites} area={currentArea} />
       )}
       
       {/* Lista de sites SEI: só aparece se o site atual NÃO for SEI */}

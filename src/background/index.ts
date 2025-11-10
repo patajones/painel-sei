@@ -14,6 +14,12 @@ import { isSeiUrl } from '../shared/sei';
 import { processSeiSiteVisit, broadcastAppState } from './services/panelService';
 
 /**
+ * Mapa em memória para armazenar a área/setor atual por aba
+ * Chave: tabId, Valor: { siteUrl, area }
+ */
+const tabContextMap = new Map<number, { siteUrl: string; area: string | null }>();
+
+/**
  * Listener principal de mensagens da extensão
  * Delega processamento para handlers específicos conforme o tipo de mensagem
  */
@@ -23,6 +29,9 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {
     switch (msg.type) {
       case 'sei:detected':
         await handleSeiDetected(msg, sender);
+        break;
+      case 'context:area-detected':
+        await handleAreaDetected(msg, sender);
         break;
       case 'app:getState':
         await handleGetState(sendResponse);
@@ -119,8 +128,10 @@ async function handleTabChangeOrNavigation(tabId: number, url?: string) {
   if (isSei) {
     await processSeiSiteVisit(tabId, url);
   } else {
-    // Se não for SEI, apenas faz broadcast do estado com a URL atual
-    await broadcastAppState(url);
+    // Se não for SEI, limpa o contexto da aba
+    tabContextMap.delete(tabId);
+    // Apenas faz broadcast do estado com a URL atual (sem área)
+    await broadcastAppState(url, null);
   }
 }
 
@@ -135,6 +146,31 @@ async function handleSeiDetected(msg: Extract<Message, { type: 'sei:detected' }>
   const tabId = sender?.tab?.id;
   if (!tabId) return;
   await processSeiSiteVisit(tabId, msg.site.url, msg.site.name);
+}
+
+/**
+ * Processa a detecção de área/setor:
+ * - Armazena em memória no Map por aba
+ * - Faz broadcast do estado atualizado
+ */
+async function handleAreaDetected(msg: Extract<Message, { type: 'context:area-detected' }>, sender: chrome.runtime.MessageSender) {
+  const tabId = sender?.tab?.id;
+  if (!tabId) return;
+  
+  console.debug('[Painel SEI] context:area-detected', { 
+    tabId, 
+    siteUrl: msg.siteUrl, 
+    area: msg.area 
+  });
+  
+  // Armazena o contexto da aba em memória
+  tabContextMap.set(tabId, {
+    siteUrl: msg.siteUrl,
+    area: msg.area
+  });
+  
+  // Faz broadcast do estado incluindo a área
+  await broadcastAppState(msg.siteUrl, msg.area);
 }
 
 
@@ -167,11 +203,12 @@ async function handlePanelOpen(sender: chrome.runtime.MessageSender) {
     const sidePanel = (chrome as any).sidePanel;
     await sidePanel.open({ tabId });
     
-    // Broadcast do estado após abrir
+    // Broadcast do estado após abrir, incluindo área se disponível
     const tab = await chrome.tabs.get(tabId);
+    const tabContext = tabContextMap.get(tabId);
     if (tab.url && isSeiUrl(tab.url)) {
-      await broadcastAppState(tab.url);
-      setTimeout(() => broadcastAppState(tab.url), 250);
+      await broadcastAppState(tab.url, tabContext?.area ?? null);
+      setTimeout(() => broadcastAppState(tab.url, tabContext?.area ?? null), 250);
     }
     console.debug('[Painel SEI] sidePanel opened via SEI bar button');
   } catch (e) {

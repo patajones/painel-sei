@@ -2,8 +2,8 @@
  * Testes para funções utilitárias de detecção e normalização de URLs do SEI
  */
 
-import { describe, it, expect } from 'vitest';
-import { isSeiUrl, extractSeiBaseUrl } from './sei';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { isSeiUrl, extractSeiBaseUrl, extractCurrentArea } from './sei';
 
 describe('isSeiUrl', () => {
   describe('deve retornar true para URLs SEI válidas', () => {
@@ -161,6 +161,127 @@ describe('extractSeiBaseUrl', () => {
     it('URLs do SEI do Governo Federal', () => {
       const url = 'https://sei.economia.gov.br/sei/controlador.php';
       expect(extractSeiBaseUrl(url)).toBe('https://sei.economia.gov.br');
+    });
+  });
+});
+
+describe('extractCurrentArea', () => {
+  beforeEach(() => {
+    // Cria um DOM limpo para cada teste
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    // Limpa o DOM após cada teste
+    document.body.innerHTML = '';
+  });
+
+  describe('deve extrair a área do elemento lnkInfraUnidade', () => {
+    it('quando há texto no link', () => {
+      document.body.innerHTML = '<a id="lnkInfraUnidade">SESINF</a>';
+      expect(extractCurrentArea()).toBe('SESINF');
+    });
+
+    it('quando há texto no atributo title', () => {
+      document.body.innerHTML = '<a id="lnkInfraUnidade" title="Seção de Suporte à Infraestrutura"></a>';
+      expect(extractCurrentArea()).toBe('Seção de Suporte à Infraestrutura');
+    });
+
+    it('preferindo texto do link sobre title', () => {
+      document.body.innerHTML = '<a id="lnkInfraUnidade" title="Nome Completo">SESINF</a>';
+      expect(extractCurrentArea()).toBe('SESINF');
+    });
+
+    it('normalizando espaços múltiplos', () => {
+      document.body.innerHTML = '<a id="lnkInfraUnidade">  Seção  de   Suporte  </a>';
+      expect(extractCurrentArea()).toBe('Seção de Suporte');
+    });
+
+    it('limitando tamanho a 120 caracteres', () => {
+      const longText = 'A'.repeat(150);
+      document.body.innerHTML = `<a id="lnkInfraUnidade">${longText}</a>`;
+      expect(extractCurrentArea()?.length).toBe(120);
+    });
+  });
+
+  describe('deve usar heurísticas alternativas quando lnkInfraUnidade não existe', () => {
+    it('buscando por classe infraAcaoBarraConjugada com title', () => {
+      document.body.innerHTML = '<a class="infraAcaoBarraConjugada" title="Seção Administrativa">Link</a>';
+      expect(extractCurrentArea()).toBe('Seção Administrativa');
+    });
+
+    it('buscando por elementos com id contendo "Unidade"', () => {
+      document.body.innerHTML = '<div id="divInfraUnidade" title="Departamento Fiscal">Teste</div>';
+      expect(extractCurrentArea()).toBe('Departamento Fiscal');
+    });
+  });
+
+  describe('deve retornar null quando não encontrar informação', () => {
+    it('quando DOM está vazio', () => {
+      expect(extractCurrentArea()).toBe(null);
+    });
+
+    it('quando elementos existem mas não têm texto/title', () => {
+      document.body.innerHTML = '<a id="lnkInfraUnidade"></a>';
+      expect(extractCurrentArea()).toBe(null);
+    });
+
+    it('ignorando títulos vazios', () => {
+      document.body.innerHTML = '<a class="infraAcaoBarraConjugada" title="">Link</a>';
+      expect(extractCurrentArea()).toBe(null);
+    });
+
+    it('truncando títulos muito longos (>120 chars)', () => {
+      const veryLongText = 'A'.repeat(121);
+      document.body.innerHTML = `<a class="infraAcaoBarraConjugada" title="${veryLongText}">Link</a>`;
+      // Deve ser truncado para 120 caracteres
+      expect(extractCurrentArea()?.length).toBe(120);
+    });
+  });
+
+  describe('casos práticos do SEI', () => {
+    it('estrutura HTML real do CJF (versão desktop)', () => {
+      document.body.innerHTML = `
+        <div id="divInfraBarraSistemaPadraoD">
+          <a id="lnkInfraUnidade" href="#" 
+             class="form-control infraAcaoBarraConjugada" 
+             title="Seção de Suporte à Infraestrutura" 
+             tabindex="54">SESINF</a>
+        </div>
+      `;
+      expect(extractCurrentArea()).toBe('SESINF');
+    });
+
+    it('estrutura HTML real do CJF (versão mobile)', () => {
+      document.body.innerHTML = `
+        <div id="divInfraBarraSistemaMovel">
+          <a id="lnkInfraUnidade" href="#" 
+             class="form-control infraAcaoBarraConjugada" 
+             title="Seção de Suporte à Infraestrutura" 
+             tabindex="66">SESINF</a>
+        </div>
+      `;
+      expect(extractCurrentArea()).toBe('SESINF');
+    });
+
+    it('siglas comuns de setores', () => {
+      const siglas = ['SESINF', 'DIPRO', 'COJEF', 'GABIN', 'SECEX'];
+      siglas.forEach(sigla => {
+        document.body.innerHTML = `<a id="lnkInfraUnidade">${sigla}</a>`;
+        expect(extractCurrentArea()).toBe(sigla);
+      });
+    });
+
+    it('nomes completos de setores', () => {
+      const nomes = [
+        'Seção de Tecnologia da Informação',
+        'Departamento de Recursos Humanos',
+        'Coordenadoria de Gestão Administrativa'
+      ];
+      nomes.forEach(nome => {
+        document.body.innerHTML = `<a id="lnkInfraUnidade" title="${nome}">SIGLA</a>`;
+        expect(extractCurrentArea()).toBe('SIGLA');
+      });
     });
   });
 });

@@ -94,3 +94,52 @@ function normalizeAreaText(text: string): string {
     .replace(/\s+/g, ' ') // Colapsa múltiplos espaços em um só
     .substring(0, 120); // Limita tamanho máximo
 }
+
+/**
+ * Extrai o nome do usuário logado no SEI
+ * Usa múltiplas heurísticas para encontrar a informação:
+ * 1. Link com id "lnkInfraUsuario" (padrão mais comum)
+ * 2. Elemento com id "lnkUsuarioSistema" (versão antiga)
+ * 3. Elementos na barra superior com informações do usuário
+ * 
+ * @returns String com o nome do usuário ou null se não encontrado
+ */
+export function extractCurrentUser(): string | null {
+  // Heurística 1: Link com ID lnkUsuarioSistema (mais comum)
+  // Ex: <a id="lnkUsuarioSistema" title="Ricardo Bernardes dos Santos (ricardo.santos/CJF)">
+  const userLink = document.querySelector('#lnkUsuarioSistema') as HTMLAnchorElement | null;
+  if (userLink) {
+    // Prioriza o atributo title que contém o nome completo
+    const title = userLink.getAttribute('title')?.trim();
+    if (title) {
+      // Extrai apenas o nome antes do parênteses
+      // Ex: "Ricardo Bernardes dos Santos (ricardo.santos/CJF)" → "Ricardo Bernardes dos Santos"
+      const match = title.match(/^([^(]+)/);
+      if (match && match[1]) {
+        return normalizeUserText(match[1]);
+      }
+    }
+    
+    // Fallback: tenta o textContent se não houver title
+    const text = userLink.textContent?.trim();
+    if (text) {
+      return normalizeUserText(text);
+    }
+  }  
+  
+  return null;
+}
+
+/**
+ * Normaliza o texto do nome do usuário
+ * - Remove espaços extras
+ * - Limita o tamanho
+ * - Remove caracteres especiais desnecessários
+ */
+function normalizeUserText(text: string): string {
+  return text
+    .trim()
+    .replace(/\s+/g, ' ') // Colapsa múltiplos espaços em um só
+    .replace(/[^\w\sÀ-ÿ]/g, '') // Remove caracteres especiais, mantém acentos
+    .substring(0, 100); // Limita tamanho máximo
+}

@@ -19,7 +19,10 @@ import './styles.css';
 
 export default function App() {
   // Obtém estado atualizado do hook customizado
-  const { seiSites, currentSiteUrl, currentArea } = useAppState();
+  const { seiSites, currentTab } = useAppState();
+  const isCurrentSiteSei = !!(currentTab?.siteUrl && (
+    isSeiUrl(currentTab.siteUrl) || seiSites.some(s => s.url === currentTab.siteUrl)
+  ));
 
   /**
    * Envia comando ao background para navegar a aba ativa
@@ -47,12 +50,17 @@ export default function App() {
       {seiSites.length === 0 && <Welcome />}
       
       {/* Banner do site atualmente ativo (sempre visível quando há URL) */}
-      {currentSiteUrl && isSeiUrl(currentSiteUrl) && (
-        <CurrentSiteBanner url={currentSiteUrl} sites={seiSites} area={currentArea} />
+      {currentTab?.siteUrl && isCurrentSiteSei && (
+        <CurrentSiteBanner 
+          url={currentTab.siteUrl} 
+          sites={seiSites} 
+          area={currentTab.area}
+          usuario={currentTab.usuario}
+        />
       )}
       
       {/* Lista de sites SEI: só aparece se o site atual NÃO for SEI */}
-      {currentSiteUrl && !isSeiUrl(currentSiteUrl) && seiSites.length > 0 && (
+      {currentTab?.siteUrl && !isCurrentSiteSei && seiSites.length > 0 && (
         <>
           <div className="section-title">Sites SEI Detectados</div>
           <SitesList sites={seiSites} onNavigate={navigateTo} />

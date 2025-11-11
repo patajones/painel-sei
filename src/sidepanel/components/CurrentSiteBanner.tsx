@@ -18,10 +18,12 @@ interface CurrentSiteBannerProps {
   url: string;
   sites: SeiSite[];
   area?: string | null;
+  usuario?: string | null;
 }
 
-export function CurrentSiteBanner({ url, sites, area }: CurrentSiteBannerProps) {
-  const isSei = isSeiUrl(url);
+export function CurrentSiteBanner({ url, sites, area, usuario }: CurrentSiteBannerProps) {
+  // Considera SEI se a URL atual passa na heurística OU já foi registrada em seiSites
+  const isSei = isSeiUrl(url) || sites.some(s => s.url === url);
   const icon = isSei ? '✅' : '🔃';
   const siteName = sites.find(s => s.url === url)?.name || url;
   
@@ -40,6 +42,16 @@ export function CurrentSiteBanner({ url, sites, area }: CurrentSiteBannerProps) 
           </span>
           <span className="current-site-area">
             {area}
+          </span>
+        </>
+      )}
+      {usuario && (
+        <>
+          <span className="current-site-label">
+            👤 Usuário:
+          </span>
+          <span className="current-site-user">
+            {usuario}
           </span>
         </>
       )}

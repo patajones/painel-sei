@@ -5,19 +5,25 @@
  * - Processa visitas/detecções de sites SEI
  */
 
-import type { Message, AppState } from '../../shared/types';
-import { getSeiSites, upsertSeiSite } from '../../shared/storage';
+import type { Message, AppState, TabContext } from '../../shared/types';
+import { getSeiSites, upsertSeiSite, getCurrentTabContext } from '../../shared/storage';
 import { getSettings } from '../../shared/settings';
 import { isSeiUrl } from '../../shared/sei';
 
 /**
- * Envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
- * @param currentSiteUrl - URL do site atualmente ativo (opcional)
- * @param currentArea - Área/setor atual (opcional)
+ * Atualiza e envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
+ * Busca automaticamente o contexto da aba ativa do storage
  */
-export async function broadcastAppState(currentSiteUrl?: string, currentArea?: string | null) {
+export async function updateAndSendAppState() {
   const seiSites = await getSeiSites();
-  const state: AppState = { seiSites, currentSiteUrl, currentArea };
+  const currentTab = await getCurrentTabContext();
+  
+  const state: AppState = { 
+    seiSites, 
+    currentTab
+  };
+  
+  console.debug('[Painel SEI][broadcast] sending app:state', state);
   chrome.runtime.sendMessage({ type: 'app:state', state } satisfies Message);
 }
 
@@ -25,7 +31,7 @@ export async function broadcastAppState(currentSiteUrl?: string, currentArea?: s
  * Processa visita/detecção de site SEI (centralizado)
  * - Upsert no storage (normaliza base URL internamente)
  * - Abre side panel se preferido
- * - Broadcast do estado (com reforço após delay para garantir montagem)
+ * - NÃO faz broadcast aqui - aguarda context:changed para fazer broadcast completo
  */
 export async function processSeiSiteVisit(tabId: number, url: string, name?: string) {
   try {
@@ -42,7 +48,6 @@ export async function processSeiSiteVisit(tabId: number, url: string, name?: str
       chrome.action?.setBadgeText?.({ text: 'SEI', tabId });
       chrome.action?.setBadgeBackgroundColor?.({ color: '#004C97', tabId });
     } catch {}
-    await broadcastAppState(url);
   } catch (e) {
     console.debug('[Painel SEI] processSeiSiteVisit skip', e);
   }

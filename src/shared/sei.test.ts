@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isSeiUrl, extractSeiBaseUrl, extractCurrentArea } from './sei';
+import { isSeiUrl, extractSeiBaseUrl, extractCurrentArea, extractCurrentUser } from './sei';
 
 describe('isSeiUrl', () => {
   describe('deve retornar true para URLs SEI válidas', () => {
@@ -283,5 +283,41 @@ describe('extractCurrentArea', () => {
         expect(extractCurrentArea()).toBe('SIGLA');
       });
     });
+  });
+});
+
+describe('extractCurrentUser', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('extrai do atributo title antes do parênteses', () => {
+    document.body.innerHTML = `
+      <a id="lnkUsuarioSistema" title="Ricardo Bernardes dos Santos (ricardo.santos/CJF)">Qualquer</a>
+    `;
+    expect(extractCurrentUser()).toBe('Ricardo Bernardes dos Santos');
+  });
+
+  it('quando title não tem parênteses, retorna título completo normalizado', () => {
+    document.body.innerHTML = `
+      <a id="lnkUsuarioSistema" title="Maria  da   Silva">Qualquer</a>
+    `;
+    expect(extractCurrentUser()).toBe('Maria da Silva');
+  });
+
+  it('fallback para textContent quando não há title', () => {
+    document.body.innerHTML = `
+      <a id="lnkUsuarioSistema">  João   P.  Souza! </a>
+    `;
+    // Pontuação deve ser removida por normalizeUserText
+    expect(extractCurrentUser()).toBe('João P Souza');
+  });
+
+  it('retorna null quando elemento não existe', () => {
+    expect(extractCurrentUser()).toBe(null);
   });
 });

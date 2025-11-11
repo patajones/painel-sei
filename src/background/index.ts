@@ -10,14 +10,9 @@
 
 import type { Message } from '../shared/types';
 import { getSeiSites } from '../shared/storage';
-import { isSeiUrl } from '../shared/sei';
-import { processSeiSiteVisit, broadcastAppState } from './services/panelService';
-
-/**
- * Mapa em memória para armazenar a área/setor atual por aba
- * Chave: tabId, Valor: { siteUrl, area }
- */
-const tabContextMap = new Map<number, { siteUrl: string; area: string | null }>();
+import { isSeiUrl, extractSeiBaseUrl } from '../shared/sei';
+import { processSeiSiteVisit, updateAndSendAppState } from './services/panelService';
+import { getCurrentTabContext, deleteTabContext, setTabContext, getTabContext } from '../shared/storage';
 
 /**
  * Listener principal de mensagens da extensão
@@ -27,11 +22,8 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {
   (async () => {
     console.debug('[Painel SEI] onMessage received', msg);
     switch (msg.type) {
-      case 'sei:detected':
-        await handleSeiDetected(msg, sender);
-        break;
-      case 'context:area-detected':
-        await handleAreaDetected(msg, sender);
+      case 'context:changed':
+        await handleContextChanged(msg, sender);
         break;
       case 'app:getState':
         await handleGetState(sendResponse);
@@ -127,50 +119,51 @@ async function handleTabChangeOrNavigation(tabId: number, url?: string) {
   // Se for site SEI, processa normalmente
   if (isSei) {
     await processSeiSiteVisit(tabId, url);
+    // Define contexto provisório para a aba (sem área/usuario ainda) para permitir que o painel
+    // já reflita a troca de aba imediatamente enquanto o content script detecta detalhes.
+    const baseUrl = extractSeiBaseUrl(url) || url;
+    const existing = getTabContext(tabId);
+    if (!existing || existing.siteUrl !== baseUrl) {
+      setTabContext(tabId, {
+        siteUrl: baseUrl,
+        area: existing?.area ?? null,
+        usuario: existing?.usuario ?? null,
+      });
+    }
+    await updateAndSendAppState();
   } else {
     // Se não for SEI, limpa o contexto da aba
-    tabContextMap.delete(tabId);
+    deleteTabContext(tabId);
     // Apenas faz broadcast do estado com a URL atual (sem área)
-    await broadcastAppState(url, null);
+    await updateAndSendAppState();
   }
 }
 
 /**
- * Processa a detecção de um site SEI:
- * - Salva o site no storage
- * - Notifica UI sobre atualização
- * - Abre side panel automaticamente se configurado
- */
-async function handleSeiDetected(msg: Extract<Message, { type: 'sei:detected' }>, sender: chrome.runtime.MessageSender) {
-  console.debug('[Painel SEI] sei:detected', { url: msg.site.url, name: msg.site.name });
-  const tabId = sender?.tab?.id;
-  if (!tabId) return;
-  await processSeiSiteVisit(tabId, msg.site.url, msg.site.name);
-}
-
-/**
- * Processa a detecção de área/setor:
+ * Processa mudança de contexto da página (área, usuário, etc.):
  * - Armazena em memória no Map por aba
  * - Faz broadcast do estado atualizado
  */
-async function handleAreaDetected(msg: Extract<Message, { type: 'context:area-detected' }>, sender: chrome.runtime.MessageSender) {
+async function handleContextChanged(msg: Extract<Message, { type: 'context:changed' }>, sender: chrome.runtime.MessageSender) {
   const tabId = sender?.tab?.id;
   if (!tabId) return;
   
-  console.debug('[Painel SEI] context:area-detected', { 
+  console.debug('[Painel SEI] context:changed', { 
     tabId, 
     siteUrl: msg.siteUrl, 
-    area: msg.area 
+    area: msg.area,
+    usuario: msg.usuario
   });
   
   // Armazena o contexto da aba em memória
-  tabContextMap.set(tabId, {
+  setTabContext(tabId, {
     siteUrl: msg.siteUrl,
-    area: msg.area
+    area: msg.area,
+    usuario: msg.usuario,
   });
   
-  // Faz broadcast do estado incluindo a área
-  await broadcastAppState(msg.siteUrl, msg.area);
+  // Faz broadcast do estado atualizado
+  await updateAndSendAppState();
 }
 
 
@@ -179,7 +172,16 @@ async function handleAreaDetected(msg: Extract<Message, { type: 'context:area-de
  */
 async function handleGetState(sendResponse: (response: any) => void) {
   const seiSites = await getSeiSites();
-  sendResponse({ seiSites });
+  try {
+    const currentTab = await getCurrentTabContext();
+    sendResponse({ 
+      seiSites, 
+      currentTab
+    });
+  } catch (e) {
+    console.debug('[Painel SEI] handleGetState failed', e);
+    sendResponse({ seiSites });
+  }
 }
 
 /**
@@ -203,13 +205,10 @@ async function handlePanelOpen(sender: chrome.runtime.MessageSender) {
     const sidePanel = (chrome as any).sidePanel;
     await sidePanel.open({ tabId });
     
-    // Broadcast do estado após abrir, incluindo área se disponível
-    const tab = await chrome.tabs.get(tabId);
-    const tabContext = tabContextMap.get(tabId);
-    if (tab.url && isSeiUrl(tab.url)) {
-      await broadcastAppState(tab.url, tabContext?.area ?? null);
-      setTimeout(() => broadcastAppState(tab.url, tabContext?.area ?? null), 250);
-    }
+    // Broadcast do estado após abrir
+    await updateAndSendAppState();
+    setTimeout(() => updateAndSendAppState(), 250);
+    
     console.debug('[Painel SEI] sidePanel opened via SEI bar button');
   } catch (e) {
     console.debug('[Painel SEI] handlePanelOpen failed', e);

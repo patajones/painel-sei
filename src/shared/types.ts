@@ -19,15 +19,31 @@ export type SeiSite = {
 };
 
 /**
+ * Contexto efêmero armazenado por aba no background (não persistido)
+ * Reconstruído conforme o content script detecta informações do SEI
+ */
+export type TabContext = {
+  /** URL base do site SEI da aba (ex: https://sei.exemplo.gov.br) */
+  siteUrl: string;
+  /** Nome da área/setor atual (ex: "SESINF") ou null se não detectada */
+  area: string | null;
+  /** Nome do usuário logado ou null se não detectado */
+  usuario: string | null;
+  /** Timestamp da última atualização deste contexto */
+  lastUpdatedAt?: string;
+  // Adicione mais campos aqui conforme necessário:
+  // processo?: string; // número do processo atualmente aberto
+  // documento?: string; // ID do documento em visualização
+};
+
+/**
  * Estado global da aplicação (compartilhado entre componentes)
  */
 export type AppState = {
   /** Lista de todos os sites SEI detectados */
   seiSites: SeiSite[];
-  /** URL do site SEI atualmente ativo (opcional) */
-  currentSiteUrl?: string;
-  /** Área/setor atual da aba ativa (opcional) */
-  currentArea?: string | null;
+  /** Contexto completo da aba ativa (se houver site SEI aberto) */
+  currentTab?: TabContext;
 };
 
 /**
@@ -35,10 +51,8 @@ export type AppState = {
  * (content script, background, side panel)
  */
 export type Message =
-  /** Notificação do content script: site SEI foi detectado */
-  | { type: 'sei:detected'; site: { url: string; name?: string } }
-  /** Notificação do content script: área/setor atual foi detectado */
-  | { type: 'context:area-detected'; siteUrl: string; area: string | null }
+  /** Notificação do content script: contexto da página mudou (área, usuário, etc.) */
+  | { type: 'context:changed'; siteUrl: string; area: string | null; usuario: string | null }
   /** Solicitação de estado atual (usado pelo side panel ao abrir) */
   | { type: 'app:getState' }
   /** Comando para navegar a aba ativa para uma URL */

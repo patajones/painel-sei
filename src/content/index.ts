@@ -7,7 +7,9 @@
  */
 
 import type { Message } from '../shared/types';
-import { extractSeiBaseUrl } from '../shared/sei';
+
+// Log imediato para confirmar que o content script está sendo executado
+console.debug('[Painel SEI][content] script loaded', { url: location.href, readyState: document.readyState });
 
 /**
  * Verifica se a página atual é um site SEI usando diferentes heurísticas
@@ -44,28 +46,68 @@ function isSeiSite(): { matched: boolean; url?: string; name?: string } {
  * Também detecta e envia a área/setor atual
  */
 function notifyDetection() {
-  const det = isSeiSite();
-  if (!det.matched || !det.url) return;
-  const msg: Message = { type: 'sei:detected', site: { url: det.url, name: det.name } };
-  chrome.runtime.sendMessage(msg);
-  
-  // Injeta botão na barra do SEI
-  injectSeiBarButton();
-  
-  // Detecta e envia a área/setor atual
-  detectAndNotifyArea();
+  console.debug('[Painel SEI][notifyDetection] called');
+  try {
+    const det = isSeiSite();
+    console.debug('[Painel SEI][detect?]', {
+      matched: det.matched,
+      url: det.url,
+      title: document.title,
+      location: location.href
+    });
+    if (!det.matched) {
+      console.debug('[Painel SEI][detect] not a SEI site, skipping');
+      return;
+    }
+    if (!det.url) {
+      console.debug('[Painel SEI][detect] no URL detected, skipping');
+      return;
+    }
+    
+    console.debug('[Painel SEI][detect!] SEI site detected, injecting button and detecting area');
+    
+    // Injeta botão na barra do SEI
+    console.debug('[Painel SEI][inject] trying to insert side panel button');
+    injectSeiBarButton();
+    
+    // Detecta e envia a área/setor atual
+    detectAndNotifySEIContext();
+  } catch (err) {
+    console.error('[Painel SEI][detect] error during detection', err);
+  }
 }
 
 /**
  * Injeta um botão na barra superior do SEI para abrir o painel lateral
  */
+let _injectAttempts = 0;
+const _INJECT_MAX_ATTEMPTS = 5;
+
 function injectSeiBarButton() {
   // Verifica se o botão já foi injetado
-  if (document.getElementById('painel-sei-button')) return;
+  const existing = document.getElementById('painel-sei-button');
+  if (existing) {
+    console.debug('[Painel SEI][inject] button already present, skipping');
+    return;
+  }
   
   // Localiza a barra do SEI (lado direito onde ficam os ícones)
   const barraD = document.querySelector('#divInfraBarraSistemaPadraoD');
-  if (!barraD) return;
+  if (!barraD) {
+    _injectAttempts++;
+    console.debug('[Painel SEI][inject] barra superior não encontrada (#divInfraBarraSistemaPadraoD)', {
+      attempt: _injectAttempts,
+      max: _INJECT_MAX_ATTEMPTS
+    });
+    if (_injectAttempts <= _INJECT_MAX_ATTEMPTS) {
+      setTimeout(() => {
+        injectSeiBarButton();
+      }, 800);
+    } else {
+      console.warn('[Painel SEI][inject] desistindo de injetar botão após múltiplas tentativas');
+    }
+    return;
+  }
   
   // Cria o botão seguindo o mesmo padrão visual dos outros ícones da barra
   const navItem = document.createElement('div');
@@ -103,6 +145,7 @@ function injectSeiBarButton() {
     }
     
     // Envia mensagem para o background abrir o painel
+    console.debug('[Painel SEI][inject] click -> sending panel:open');
     chrome.runtime.sendMessage({ type: 'panel:open' } as Message);
   });
   
@@ -111,27 +154,36 @@ function injectSeiBarButton() {
   // Insere o botão antes do último item (botão Sair)
   const lastItem = barraD.lastElementChild;
   if (lastItem) {
+    console.debug('[Painel SEI][inject] inserting button before last item');
     barraD.insertBefore(navItem, lastItem);
   } else {
+    console.debug('[Painel SEI][inject] appending button as last item');
     barraD.appendChild(navItem);
   }
+  console.debug('[Painel SEI][inject] button injected successfully');
 }
 
 /**
- * Detecta a área/setor atual e notifica o background
- * Usa a função extractCurrentArea do módulo compartilhado
+ * Detecta usuário e a área/setor atual e notifica o background 
  */
-function detectAndNotifyArea() {
+function detectAndNotifySEIContext() {
   // Importa dinamicamente para evitar problemas de ordem
-  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl }) => {
+  console.debug('[Painel SEI][detectArea] detectAndNotifyArea called');
+  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl, extractCurrentUser }) => {
     const area = extractCurrentArea();
-    const siteUrl = extractSeiBaseUrl(location.href);
+    const usuario = extractCurrentUser();
+    const siteUrl = extractSeiBaseUrl(location.href);    
     
+    console.debug('[Painel SEI][detectArea] area:', area);
+    console.debug('[Painel SEI][detectArea] siteUrl:', siteUrl);
+    console.debug('[Painel SEI][detectArea] usuario:', usuario);
+
     if (siteUrl) {
       const msg: Message = {
-        type: 'context:area-detected',
+        type: 'context:changed',
         siteUrl,
-        area
+        area,
+        usuario
       };
       chrome.runtime.sendMessage(msg);
     }
@@ -139,9 +191,25 @@ function detectAndNotifyArea() {
 }
 
 // Detecta em diferentes momentos do carregamento da página
-document.addEventListener('DOMContentLoaded', notifyDetection);
-window.addEventListener('load', notifyDetection);
-window.addEventListener('hashchange', notifyDetection);
+console.debug('[Painel SEI][content] registering event listeners');
+document.addEventListener('DOMContentLoaded', () => {
+  console.debug('[Painel SEI][event] DOMContentLoaded fired');
+  notifyDetection();
+});
+window.addEventListener('load', () => {
+  console.debug('[Painel SEI][event] load fired');
+  notifyDetection();
+});
+window.addEventListener('hashchange', () => {
+  console.debug('[Painel SEI][event] hashchange fired');
+  notifyDetection();
+});
+
+// Se o documento já estiver pronto, executa imediatamente
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  console.debug('[Painel SEI][content] document already ready, calling notifyDetection immediately');
+  notifyDetection();
+}
 
 /**
  * Intercepta navegações SPA (Single Page Application)
@@ -150,6 +218,7 @@ window.addEventListener('hashchange', notifyDetection);
 const origPush = history.pushState;
 history.pushState = function (...args) {
   const ret = origPush.apply(this, args as any);
+  console.debug('[Painel SEI][history] pushState intercepted');
   notifyDetection();
   return ret;
 };
@@ -157,6 +226,7 @@ history.pushState = function (...args) {
 const origReplace = history.replaceState;
 history.replaceState = function (...args) {
   const ret = origReplace.apply(this, args as any);
+  console.debug('[Painel SEI][history] replaceState intercepted');
   notifyDetection();
   return ret;
 };

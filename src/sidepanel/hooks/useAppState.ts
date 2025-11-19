@@ -24,10 +24,10 @@ export function useAppState(): AppState {
       const lastErr = (chrome.runtime as any)?.lastError;
       if (lastErr) {
         // Em alguns casos o SW pode estar hibernado; tenta novamente rapidamente
-        console.debug('[Painel SEI][useAppState] app:getState retry due to lastError', lastErr?.message);
+        console.debug('[Painel SEI][SidePanel][useAppState] app:getState retry due to lastError', lastErr?.message);
         setTimeout(() => {
           chrome.runtime.sendMessage({ type: 'app:getState' } as Message, (retryRes) => {
-            console.debug('[Painel SEI][useAppState] app:getState retry response', retryRes);
+            console.debug('[Painel SEI][SidePanel][useAppState] app:getState retry response', retryRes);
             if (retryRes) {
               setState(cur => ({
                 ...cur,
@@ -39,7 +39,7 @@ export function useAppState(): AppState {
         }, 300);
         return;
       }
-      console.debug('[Painel SEI][useAppState] app:getState initial response', response);
+      console.debug('[Painel SEI][SidePanel][useAppState] app:getState initial response', response);
       if (response) {
         setState(currentState => ({ 
           ...currentState,
@@ -53,9 +53,9 @@ export function useAppState(): AppState {
     // LISTENER: Escuta atualizações contínuas do background
     // -------------------------------------------------------------------------
     const messageHandler = (message: Message) => {
-      console.debug('[Painel SEI][useAppState] message received', message);
+      console.debug('[Painel SEI][SidePanel][useAppState] message received', message);
       if (message.type === 'app:state') {
-        console.debug('[Painel SEI][useAppState] updating state', message.state);
+        console.debug('[Painel SEI][SidePanel][useAppState] updating state', message.state);
         // Substitui todo o estado com o novo recebido
         setState(message.state);
       }

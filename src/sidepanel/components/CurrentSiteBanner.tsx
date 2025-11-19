@@ -19,18 +19,28 @@ interface CurrentSiteBannerProps {
   sites: SeiSite[];
   area?: string | null;
   usuario?: string | null;
+  currentIsSei: boolean;
 }
 
-export function CurrentSiteBanner({ url, sites, area, usuario }: CurrentSiteBannerProps) {
+export function CurrentSiteBanner({ url, sites, area, usuario, currentIsSei }: CurrentSiteBannerProps) {
   // Considera SEI se a URL atual passa na heurística OU já foi registrada em seiSites
   const isSei = isSeiUrl(url) || sites.some(s => s.url === url);
-  const icon = isSei ? '✅' : '🔃';
   const siteName = sites.find(s => s.url === url)?.name || url;
-  
+
+  // Handler para ativar a última aba SEI
+  function handleActivateLastSeiTab(e: React.MouseEvent) {
+    e.preventDefault();
+    chrome.runtime.sendMessage({ type: 'app:activateLastSeiTab' });
+  }
+
   return (
     <div className="current-site-banner">
       <span className="current-site-label">
-        {icon} Site corrente:
+        {currentIsSei ? (
+          <>✅ Site corrente:</>
+        ) : (
+          <><a href="#" onClick={handleActivateLastSeiTab} style={{ textDecoration: 'underline', color: '#004C97', cursor: 'pointer' }} title="Ir para o último SEI aberto">🔃</a> Site corrente:</>
+        )}
       </span>
       <span className="current-site-url">
         {siteName}

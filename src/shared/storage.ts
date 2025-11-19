@@ -138,3 +138,29 @@ export async function getCurrentTabContext(): Promise<TabContext | undefined> {
   if (!activeTab?.id) return undefined;
   return getTabContext(activeTab.id);
 }
+
+// Variável em memória para o último tabId SEI
+let lastSeiTabId: number | undefined = undefined;
+
+/**
+ * Salva o último tabId SEI detectado em memória
+ */
+export function setLastSeiTabId(tabId: number) {
+  lastSeiTabId = tabId;
+}
+
+/**
+ * Recupera o último tabId SEI detectado da memória
+ */
+export function getLastSeiTabId(): number | undefined {
+  return lastSeiTabId;
+}
+
+/**
+ * Recupera o último tabId SEI detectado da memória
+ */
+export async function getLastSeiTabContext(): Promise<TabContext | undefined> {
+  const tabId = await getLastSeiTabId();
+  if (!tabId) return undefined;
+  return getTabContext(tabId);
+}

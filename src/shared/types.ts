@@ -42,8 +42,10 @@ export type TabContext = {
 export type AppState = {
   /** Lista de todos os sites SEI detectados */
   seiSites: SeiSite[];
-  /** Contexto completo da aba ativa (se houver site SEI aberto) */
+  /** Contexto completo da aba ativa */
   currentTab?: TabContext;
+  /** Contexto completo da aba SEI (se tiver tido um site SEI aberto) */
+  lastSeiTab?: TabContext;
 };
 
 /**
@@ -53,6 +55,8 @@ export type AppState = {
 export type Message =
   /** Notificação do content script: contexto da página mudou (área, usuário, etc.) */
   | { type: 'context:changed'; siteUrl: string; area: string | null; usuario: string | null }
+  /** Solicitação do background para o content script atualizar área/usuário */
+  | { type: 'context:request' }
   /** Solicitação de estado atual (usado pelo side panel ao abrir) */
   | { type: 'app:getState' }
   /** Comando para navegar a aba ativa para uma URL */
@@ -60,4 +64,6 @@ export type Message =
   /** Broadcast de estado atualizado para UI */
   | { type: 'app:state'; state: AppState }
   /** Comando para abrir o painel lateral (enviado pelo botão injetado na barra do SEI) */
-  | { type: 'panel:open' };
+  | { type: 'panel:open' }
+  /** Comando para ativar a última aba SEI */
+  | { type: 'app:activateLastSeiTab' };

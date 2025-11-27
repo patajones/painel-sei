@@ -2,19 +2,34 @@
 
 ## O que é o AppState?
 
-`AppState` é a estrutura de dados centralizada que representa o **estado global da extensão** em um determinado momento. Ele é usado para sincronizar informações entre os diferentes componentes da extensão (background, side panel, etc.).
+
+`AppState` é a estrutura de dados centralizada que representa o **estado global da extensão** em um determinado momento. Ele é usado para sincronizar informações entre os diferentes componentes da extensão (background, side panel, etc.). Além do estado da aba corrente, a extensão mantém em memória o contexto da última aba SEI visitada, permitindo fallback e navegação facilitada para o usuário.
 
 ```typescript
-type AppState = {
-  seiSites: SeiSite[];      // Lista de todos os sites SEI detectados (persistente)
-  currentTab?: TabContext;  // Contexto completo da aba ativa (efêmero)
-}
+export type AppState = {
+  /** Lista de todos os sites SEI detectados */
+  seiSites: SeiSite[];
+  /** Contexto completo da aba ativa */
+  currentTab?: TabContext;
+  /** Contexto completo da aba SEI (se tiver tido um site SEI aberto) */
+  lastSeiTab?: TabContext;
+};
+export type TabContext = {
+  /** URL base do site SEI da aba (ex: https://sei.exemplo.gov.br) */
+  siteUrl: string;
+  /** Nome da área/setor atual (ex: "SESINF") ou null se não detectada */
+  area: string | null;
+  /** Nome do usuário logado ou null se não detectado */
+  usuario: string | null;
+  /** Timestamp da última atualização deste contexto */
+  lastUpdatedAt?: string;
+};
 ```
 
 ## Componentes do AppState
 
 ### 1. `seiSites` (Persistente)
-- **Fonte**: `chrome.storage.local` via `getSeiSites()`
+- **Fonte**: `chrome.storage.local`
 - **Conteúdo**: Array de sites SEI detectados com metadados
 - **Persistência**: Sobrevive a reinicializações do navegador
 - **Exemplo**:
@@ -29,30 +44,28 @@ type AppState = {
   ]
   ```
 
-### 2. `currentTab` (Efêmero)
-- **Fonte**: Map em memória via `getCurrentTabContext()`
-- **Conteúdo**: Contexto da aba ativa no momento (URL, área, usuário, etc.)
+
+### 2. `currentTab` e `lastSeiTabContext` (Efêmero)
+- **Fonte**: Map em memória via `getCurrentTabContext()` e `getLastSeiTabContext()`
+- **Conteúdo**: Contexto da aba ativa no momento / Contexto da última aba SEI visitada
 - **Persistência**: Apenas na sessão; reconstruído quando content script detecta dados
-- **Exemplo**:
-  ```json
-  {
-    "siteUrl": "https://sei.cjf.jus.br",
-    "area": "SESINF",
-    "usuario": "João Silva",
-    "lastUpdatedAt": "2025-11-11T15:30:45.123Z"
-  }
-  ```
+- **Uso**: 
+  - `currentTab`: Usado para exibir o contexto da aba ativa no painel lateral, mostrando site, área/setor e usuário detectados em tempo real.
+  - `lastSeiTabContext`: Usado como fallback quando o usuário não está em uma aba SEI. Permite ao painel lateral exibir os dados do ultimo SEI acessado.
+
 
 ---
 
 ## Quem Acessa o AppState?
+
 
 ### 1. **Side Panel** (src/sidepanel/)
 - **Como**: Através do hook `useAppState()`
 - **Quando**: 
   - Ao abrir o painel (solicita via `app:getState`)
   - Continuamente (escuta mensagens `app:state`)
-- **Para quê**: Renderizar UI com lista de sites e contexto atual
+- **Para quê**: Renderizar UI com lista de sites e os dados contextuais ao SEI
+
 
 ```typescript
 // src/sidepanel/hooks/useAppState.ts
@@ -73,14 +86,17 @@ useEffect(() => {
 }, []);
 ```
 
+
 ### 2. **Background Service Worker** (src/background/)
 - **Como**: Constrói o AppState dinamicamente a partir de:
   - `getSeiSites()` → storage persistente
   - `getCurrentTabContext()` → Map em memória
+  - `getLastSeiTabContext()` → contexto da última aba SEI (fallback)
 - **Quando**: 
   - Ao receber `app:getState` (retorna snapshot atual)
   - Antes de fazer broadcast via `updateAndSendAppState()`
-- **Para quê**: Responder consultas e notificar mudanças
+  - Ao receber `app:activateLastSeiTab` (ativa aba SEI anterior)
+- **Para quê**: Responder consultas, notificar mudanças e permitir navegação rápida para última aba SEI
 
 ```typescript
 // src/background/index.ts
@@ -101,9 +117,10 @@ export async function updateAndSendAppState() {
 
 ---
 
+
 ## Quem Modifica o AppState?
 
-O AppState **não é modificado diretamente**. Ele é **reconstruído** a partir de fontes autoritativas:
+O AppState **não é modificado diretamente**. Ele é **reconstruído** a partir de fontes autoritativas e helpers em memória:
 
 ### 1. **Modificação de `seiSites`** (Persistente)
 
@@ -133,15 +150,17 @@ export async function processSeiSiteVisit(tabId: number, url: string) {
 
 ---
 
-### 2. **Modificação de `currentTab`** (Efêmero)
+
+### 2. **Modificação de `currentTab` e `lastSeiTabContext`** (Efêmero)
 
 #### Quem modifica:
 - **Content Script** (detecta) → **Background** (armazena)
+- **Background** atualiza helpers de contexto/tabId em memória
 
 #### Quando:
 - Content script detecta área/setor do DOM
 - Envia mensagem `context:changed`
-- Background armazena no Map em memória
+- Background armazena no Map em memória e atualiza `lastSeiTabContext`
 
 #### Como:
 ```typescript
@@ -158,12 +177,17 @@ chrome.runtime.sendMessage({
 // src/background/index.ts (armazena)
 async function handleContextChanged(msg, sender) {
   const tabId = sender.tab.id;
-  setTabContext(tabId, {     // ✅ Modifica Map em memória
+  setTabContext(tabId, {
     siteUrl: msg.siteUrl,
     area: msg.area,
     usuario: msg.usuario
   });
-  await updateAndSendAppState();  // Notifica mudança
+  setLastSeiTabContext(tabId, {
+    siteUrl: msg.siteUrl,
+    area: msg.area,
+    usuario: msg.usuario
+  });
+  await updateAndSendAppState();
 }
 ```
 
@@ -223,11 +247,14 @@ sequenceDiagram
     SidePanel->>SidePanel: Atualiza UI
 ```
 
+
 ### Troca de Aba (onActivated / onUpdated)
 
-Quando o usuário troca de aba ou a URL muda, o background envia um "contexto provisório". IMPORTANTE: Apenas trocar de aba NÃO dispara automaticamente um novo `context:changed` — esse evento só ocorre quando o content script executa (primeiro carregamento da página) ou quando algum mecanismo explícito de revalidação é implementado.
+Quando o usuário troca de aba ou a URL muda, o background envia um "contexto provisório". Apenas trocar de aba NÃO dispara automaticamente um novo `context:changed` — esse evento só ocorre quando o content script executa (primeiro carregamento da página) ou quando algum mecanismo explícito de revalidação é implementado.
 
-Hoje: na troca de aba já carregada, o content script não reenviará `context:changed` (ele já rodou antes). Por isso área/usuário exibidos são os últimos valores armazenados em memória. Se nunca houve detecção naquela aba (ex.: aba aberta antes da instalação), ficará área/usuário `null` até uma navegação ou recarregamento.
+Agora, ao trocar para uma aba fora do SEI, o painel lateral pode exibir um atalho (emoji 🔃) para retornar à última aba SEI visitada, usando o contexto armazenado em memória.
+
+Se nunca houve detecção naquela aba (ex.: aba aberta antes da instalação), ficará área/usuário `null` até uma navegação ou recarregamento.
 
 ```mermaid
 sequenceDiagram
@@ -250,25 +277,28 @@ sequenceDiagram
   end
 ```
 
+
 ### Consulta de Estado (Side Panel Abre)
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant SidePanel
-    participant Background
-    participant Storage
+  participant User
+  participant SidePanel
+  participant Background
+  participant Storage
 
-    User->>SidePanel: Abre painel
-    SidePanel->>Background: app:getState
-    Background->>Storage: getSeiSites()
-    Storage-->>Background: seiSites[]
-    Background->>Background: getCurrentTabContext()
-    Background-->>SidePanel: {seiSites, currentTab}
-    SidePanel->>SidePanel: Renderiza UI
+  User->>SidePanel: Abre painel
+  SidePanel->>Background: app:getState
+  Background->>Storage: getSeiSites()
+  Storage-->>Background: seiSites[]
+  Background->>Background: getCurrentTabContext()
+  Background->>Background: getLastSeiTabContext()
+  Background-->>SidePanel: {seiSites, currentTab, lastSeiTabContext}
+  SidePanel->>SidePanel: Renderiza UI (inclui fallback para última aba SEI)
 ```
 
 ---
+
 
 ## Fontes de Verdade
 
@@ -278,14 +308,18 @@ sequenceDiagram
 | `currentTab.siteUrl` | Map em memória | Sessão | `setTabContext()` após detecção de navegação |
 | `currentTab.area` | Map em memória | Sessão | `setTabContext()` após `context:changed` |
 | `currentTab.usuario` | Map em memória | Sessão | `setTabContext()` após `context:changed` |
+| `lastSeiTabContext` | Variável em memória | Sessão | `setLastSeiTabContext()` sempre que contexto SEI é detectado |
 
 ---
 
 ## Garantias e Invariantes
 
+
 ### ✅ O que é garantido:
 - `seiSites` sempre reflete o histórico completo de sites visitados
 - `currentTab` é `undefined` quando não há aba ativa ou aba não é SEI
+- `lastSeiTabContext` é atualizado sempre que um contexto SEI válido é detectado
+- O painel lateral pode oferecer fallback para última aba SEI via emoji/link
 - `updateAndSendAppState()` sempre busca estado mais recente antes de enviar
 - Broadcasts são enviados sempre que há mudança de contexto relevante
 - Storage persistente sobrevive a hibernação do service worker
@@ -306,6 +340,7 @@ O painel considera a aba atual como site SEI se:
 
 Esse fallback evita falso negativo para URLs base como `https://sei.cjf.jus.br` que podem não conter `/sei/` no path naquele momento. Assim, o banner é exibido logo após a troca de aba e enriquecido quando chegam `area` e `usuario`.
 
+
 ### Revalidação em Troca de Aba (Opcional)
 
 Se for necessário garantir atualização de área/usuário ao simplesmente ativar uma aba (sem navegar/recarregar), pode-se implementar um dos mecanismos abaixo:
@@ -319,7 +354,7 @@ Trade-offs:
 - (2) Pode gerar eventos redundantes se o usuário alternar rápido; adicionar debounce.
 - (3) Mais intrusivo; evita manter listener extra no content script.
 
-Estado atual: Nenhum desses mecanismos está ativo; apenas navegação/reload gera novo `context:changed`.
+Estado atual: Nenhum desses mecanismos está ativo; apenas navegação/reload gera novo `context:changed`. O fallback para última aba SEI cobre a maioria dos casos de navegação rápida.
 
 ---
 
@@ -346,30 +381,21 @@ console.log(Array.from(tabContextMap.entries()));
 [Painel SEI][broadcast] sending app:state {seiSites: [...], currentTab: {...}}
 ```
 
-### Acessar currentTab no Side Panel:
+
+### Acessar currentTab e lastSeiTabContext no Side Panel:
 
 ```typescript
 // src/sidepanel/App.tsx
-const { seiSites, currentTab } = useAppState();
+const { seiSites, currentTab, lastSeiTabContext } = useAppState();
 
 // Uso:
 {currentTab?.siteUrl}     // URL do site
 {currentTab?.area}        // Área/setor
-{currentTab?.usuario}     // Usuário (quando implementado)
+{currentTab?.usuario}     // Usuário
 {currentTab?.lastUpdatedAt}
+
+// Fallback para última aba SEI:
+{lastSeiTabContext?.siteUrl}
+{lastSeiTabContext?.area}
+{lastSeiTabContext?.usuario}
 ```
-
----
-
-## Resumo
-
-| Aspecto | Detalhes |
-|---------|----------|
-| **O que é** | Estrutura de dados que representa estado global da extensão |
-| **Estrutura** | `{ seiSites: SeiSite[], currentTab?: TabContext }` |
-| **Quem lê** | Side Panel (via `useAppState`), Background (para construir broadcasts) |
-| **Quem escreve** | Background escreve nas fontes (`storage.local` + `tabContextMap`) |
-| **Quem detecta mudanças** | Content Script detecta → Background processa → Side Panel renderiza |
-| **Persistência** | `seiSites` persistente; `currentTab` efêmero (reconstruído por sessão) |
-| **Sincronização** | Via `app:state` (push) e `app:getState` (pull) |
-| **Broadcast** | `updateAndSendAppState()` busca estado atual e envia automaticamente |

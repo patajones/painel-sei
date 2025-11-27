@@ -19,7 +19,14 @@ import './styles.css';
 
 export default function App() {
   // Obtém estado atualizado do hook customizado
-  const { seiSites, currentSiteUrl } = useAppState();
+  const { seiSites, currentTab, lastSeiTab } = useAppState();
+  // Determina se a aba atual é SEI
+  const isCurrentSiteSei = !!(currentTab?.siteUrl && (
+    isSeiUrl(currentTab.siteUrl) || seiSites.some(s => s.url === currentTab.siteUrl)
+  ));
+  const hasLastSiteSei = !!(lastSeiTab?.siteUrl && (
+    isSeiUrl(lastSeiTab.siteUrl) || seiSites.some(s => s.url === lastSeiTab.siteUrl)
+  ));
 
   /**
    * Envia comando ao background para navegar a aba ativa
@@ -46,13 +53,27 @@ export default function App() {
       {/* Estado vazio: nenhum site detectado ainda */}
       {seiSites.length === 0 && <Welcome />}
       
-      {/* Banner do site atualmente ativo (sempre visível quando há URL) */}
-      {currentSiteUrl && isSeiUrl(currentSiteUrl) && (
-        <CurrentSiteBanner url={currentSiteUrl} sites={seiSites} />
-      )}
+      {/* Banner do site SEI atual ou último contexto SEI salvo */}
+      {(isCurrentSiteSei && currentTab?.siteUrl) ? (
+        <CurrentSiteBanner 
+          url={currentTab.siteUrl} 
+          sites={seiSites} 
+          area={currentTab.area}
+          usuario={currentTab.usuario}
+          currentIsSei={true}
+        />
+      ) : (lastSeiTab && lastSeiTab.siteUrl) ? (
+        <CurrentSiteBanner 
+          url={lastSeiTab.siteUrl}
+          sites={seiSites}
+          area={lastSeiTab.area}
+          usuario={lastSeiTab.usuario}
+          currentIsSei={false}
+        />
+      ) : null}
       
       {/* Lista de sites SEI: só aparece se o site atual NÃO for SEI */}
-      {currentSiteUrl && !isSeiUrl(currentSiteUrl) && seiSites.length > 0 && (
+      {currentTab?.siteUrl && !isCurrentSiteSei && seiSites.length > 0 && (
         <>
           <div className="section-title">Sites SEI Detectados</div>
           <SitesList sites={seiSites} onNavigate={navigateTo} />

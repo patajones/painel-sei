@@ -8,6 +8,9 @@
 
 import type { Message } from '../shared/types';
 
+// Log imediato para confirmar que o content script está sendo executado
+console.debug('[Painel SEI][ContentScript] script loaded', { url: location.href, readyState: document.readyState });
+
 /**
  * Verifica se a página atual é um site SEI usando diferentes heurísticas
  * @returns Objeto com resultado da detecção e informações extraídas (URL, nome do órgão)
@@ -40,27 +43,71 @@ function isSeiSite(): { matched: boolean; url?: string; name?: string } {
 /**
  * Notifica o background script quando um site SEI é detectado
  * Envia mensagem com URL e nome do órgão (se disponível)
+ * Também detecta e envia a área/setor atual
  */
 function notifyDetection() {
-  const det = isSeiSite();
-  if (!det.matched || !det.url) return;
-  const msg: Message = { type: 'sei:detected', site: { url: det.url, name: det.name } };
-  chrome.runtime.sendMessage(msg);
-  
-  // Injeta botão na barra do SEI
-  injectSeiBarButton();
+  console.debug('[Painel SEI][ContentScript][notifyDetection] called');
+  try {
+    const det = isSeiSite();
+    console.debug('[Painel SEI][ContentScript][notifyDetection] detect?', {
+      matched: det.matched,
+      url: det.url,
+      title: document.title,
+      location: location.href
+    });
+    if (!det.matched) {
+      console.debug('[Painel SEI][ContentScript][notifyDetection] not a SEI site, skipping');
+      return;
+    }
+    if (!det.url) {
+      console.debug('[Painel SEI][ContentScript][notifyDetection] no URL detected, skipping');
+      return;
+    }
+    
+    console.debug('[Painel SEI][ContentScript][notifyDetection] SEI site detected, injecting button and detecting area');
+    
+    // Injeta botão na barra do SEI
+    console.debug('[Painel SEI][ContentScript][notifyDetection] trying to insert side panel button');
+    injectSeiBarButton();
+    
+    // Detecta e envia a área/setor atual
+    detectAndNotifySEIContext();
+  } catch (err) {
+    console.error('[Painel SEI][ContentScript][notifyDetection] error during detection', err);
+  }
 }
 
 /**
  * Injeta um botão na barra superior do SEI para abrir o painel lateral
  */
+let _injectAttempts = 0;
+const _INJECT_MAX_ATTEMPTS = 5;
+
 function injectSeiBarButton() {
   // Verifica se o botão já foi injetado
-  if (document.getElementById('painel-sei-button')) return;
+  const existing = document.getElementById('painel-sei-button');
+  if (existing) {
+    console.debug('[Painel SEI][ContentScript][injectSeiBarButton] button already present, skipping');
+    return;
+  }
   
   // Localiza a barra do SEI (lado direito onde ficam os ícones)
   const barraD = document.querySelector('#divInfraBarraSistemaPadraoD');
-  if (!barraD) return;
+  if (!barraD) {
+    _injectAttempts++;
+    console.debug('[Painel SEI][ContentScript][injectSeiBarButton] barra superior não encontrada (#divInfraBarraSistemaPadraoD)', {
+      attempt: _injectAttempts,
+      max: _INJECT_MAX_ATTEMPTS
+    });
+    if (_injectAttempts <= _INJECT_MAX_ATTEMPTS) {
+      setTimeout(() => {
+        injectSeiBarButton();
+      }, 800);
+    } else {
+      console.warn('[Painel SEI][ContentScript][injectSeiBarButton] desistindo de injetar botão após múltiplas tentativas');
+    }
+    return;
+  }
   
   // Cria o botão seguindo o mesmo padrão visual dos outros ícones da barra
   const navItem = document.createElement('div');
@@ -92,12 +139,13 @@ function injectSeiBarButton() {
     
     // Verifica se o contexto da extensão ainda é válido
     if (!chrome.runtime?.id) {
-      console.warn('[Painel SEI] Extensão foi recarregada. Recarregue a página.');
+      console.warn('[Painel SEI][ContentScript] Extensão foi recarregada. Recarregue a página.');
       alert('A extensão foi atualizada. Por favor, recarregue a página.');
       return;
     }
     
     // Envia mensagem para o background abrir o painel
+    console.debug('[Painel SEI][ContentScript] click -> sending panel:open');
     chrome.runtime.sendMessage({ type: 'panel:open' } as Message);
   });
   
@@ -106,16 +154,70 @@ function injectSeiBarButton() {
   // Insere o botão antes do último item (botão Sair)
   const lastItem = barraD.lastElementChild;
   if (lastItem) {
+    console.debug('[Painel SEI][ContentScript] inserting button before last item');
     barraD.insertBefore(navItem, lastItem);
   } else {
+    console.debug('[Painel SEI][ContentScript] appending button as last item');
     barraD.appendChild(navItem);
   }
+  console.debug('[Painel SEI][ContentScript] button injected successfully');
+}
+
+/**
+ * Detecta usuário e a área/setor atual e notifica o background 
+ */
+function detectAndNotifySEIContext() {
+  // Importa dinamicamente para evitar problemas de ordem
+  console.debug('[Painel SEI][ContentScript][detectArea] detectAndNotifyArea called');
+  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl, extractCurrentUser }) => {
+    const area = extractCurrentArea();
+    const usuario = extractCurrentUser();
+    const siteUrl = extractSeiBaseUrl(location.href);    
+    
+    console.debug('[Painel SEI][ContentScript][detectArea] area:', area);
+    console.debug('[Painel SEI][ContentScript][detectArea] siteUrl:', siteUrl);
+    console.debug('[Painel SEI][ContentScript][detectArea] usuario:', usuario);
+
+    if (siteUrl) {
+      const msg: Message = {
+        type: 'context:changed',
+        siteUrl,
+        area,
+        usuario
+      };
+      chrome.runtime.sendMessage(msg);
+    }
+  });
 }
 
 // Detecta em diferentes momentos do carregamento da página
-document.addEventListener('DOMContentLoaded', notifyDetection);
-window.addEventListener('load', notifyDetection);
-window.addEventListener('hashchange', notifyDetection);
+console.debug('[Painel SEI][ContentScript][content] registering event listeners');
+document.addEventListener('DOMContentLoaded', () => {
+  console.debug('[Painel SEI][ContentScript][event] DOMContentLoaded fired');
+  notifyDetection();
+});
+window.addEventListener('load', () => {
+  console.debug('[Painel SEI][ContentScript][event] load fired');
+  notifyDetection();
+});
+window.addEventListener('hashchange', () => {
+  console.debug('[Painel SEI][ContentScript][ContentScript][event] hashchange fired');
+  notifyDetection();
+});
+
+// Escuta mensagens do background para atualizar área/usuário
+chrome.runtime.onMessage.addListener((msg: Message) => {
+  if (msg.type === 'context:request') {
+    console.debug('[Painel SEI][ContentScript] recebida context:request do background, atualizando área/usuário');
+    detectAndNotifySEIContext();
+  }
+});
+
+// Se o documento já estiver pronto, executa imediatamente
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  console.debug('[Painel SEI][ContentScript][content] document already ready, calling notifyDetection immediately');
+  notifyDetection();
+}
 
 /**
  * Intercepta navegações SPA (Single Page Application)
@@ -124,6 +226,7 @@ window.addEventListener('hashchange', notifyDetection);
 const origPush = history.pushState;
 history.pushState = function (...args) {
   const ret = origPush.apply(this, args as any);
+  console.debug('[Painel SEI][ContentScript][history] pushState intercepted');
   notifyDetection();
   return ret;
 };
@@ -131,6 +234,7 @@ history.pushState = function (...args) {
 const origReplace = history.replaceState;
 history.replaceState = function (...args) {
   const ret = origReplace.apply(this, args as any);
+  console.debug('[Painel SEI][ContentScript][history] replaceState intercepted');
   notifyDetection();
   return ret;
 };

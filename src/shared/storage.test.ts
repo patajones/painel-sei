@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getSeiSites, upsertSeiSite } from './storage';
+import { getSeiSites, upsertSeiSite, setTabContext, updateTabContext, deleteTabContext, getCurrentTabContext, getTabContext } from './storage';
 
 // Mock chrome.storage.local
 const mockStorage: Record<string, any> = {};
@@ -26,6 +26,9 @@ const mockStorage: Record<string, any> = {};
         return Promise.resolve();
       }),
     },
+  },
+  tabs: {
+    query: vi.fn(),
   },
 };
 
@@ -110,6 +113,48 @@ describe('Storage Utils', () => {
       const sites = await upsertSeiSite(url, newName);
 
       expect(sites[0].name).toBe(newName);
+    });
+  });
+
+  describe('TabContext helpers', () => {
+    it('updateTabContext deve fazer merge e atualizar lastUpdatedAt', async () => {
+      const tabId = 42;
+      setTabContext(tabId, { siteUrl: 'https://sei.example.com', area: 'OLD', usuario: 'User', lastUpdatedAt: 'x' } as any);
+      const before = getTabContext(tabId)!;
+      // espera um tick para timestamp mudar
+      await new Promise(r => setTimeout(r, 2));
+      updateTabContext(tabId, { area: 'NEW' });
+      const after = getTabContext(tabId)!;
+      expect(after.siteUrl).toBe('https://sei.example.com');
+      expect(after.usuario).toBe('User');
+      expect(after.area).toBe('NEW');
+      expect(after.lastUpdatedAt).not.toBe(before.lastUpdatedAt);
+    });
+
+    it('deleteTabContext deve remover contexto e ser idempotente', () => {
+      const tabId = 77;
+      setTabContext(tabId, { siteUrl: 'https://sei.example.com', area: 'A', usuario: 'U', lastUpdatedAt: 'x' } as any);
+      expect(getTabContext(tabId)).toBeTruthy();
+      deleteTabContext(tabId);
+      expect(getTabContext(tabId)).toBeUndefined();
+      // remover de novo não deve quebrar
+      expect(() => deleteTabContext(tabId)).not.toThrow();
+    });
+
+    it('getCurrentTabContext deve retornar undefined quando não há aba ativa', async () => {
+      (chrome.tabs.query as any).mockResolvedValueOnce([]);
+      const ctx = await getCurrentTabContext();
+      expect(ctx).toBeUndefined();
+    });
+
+    it('getCurrentTabContext deve retornar contexto da aba ativa quando existir', async () => {
+      const tabId = 11;
+      (chrome.tabs.query as any).mockResolvedValueOnce([{ id: tabId }]);
+      setTabContext(tabId, { siteUrl: 'https://sei.example.com', area: 'SESINF', usuario: 'João', lastUpdatedAt: 'x' } as any);
+      const ctx = await getCurrentTabContext();
+      expect(ctx?.siteUrl).toBe('https://sei.example.com');
+      expect(ctx?.area).toBe('SESINF');
+      expect(ctx?.usuario).toBe('João');
     });
   });
 });

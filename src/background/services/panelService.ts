@@ -5,18 +5,27 @@
  * - Processa visitas/detecções de sites SEI
  */
 
-import type { Message, AppState } from '../../shared/types';
-import { getSeiSites, upsertSeiSite } from '../../shared/storage';
+import type { Message, AppState, TabContext } from '../../shared/types';
+import { getSeiSites, upsertSeiSite, getCurrentTabContext, setLastSeiTabId, getLastSeiTabContext } from '../../shared/storage';
 import { getSettings } from '../../shared/settings';
 import { isSeiUrl } from '../../shared/sei';
 
 /**
- * Envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
- * @param currentSiteUrl - URL do site atualmente ativo (opcional)
+ * Atualiza e envia o estado atual da aplicação para todos os ouvintes (principalmente o side panel)
+ * Busca automaticamente o contexto da aba ativa do storage
  */
-export async function broadcastAppState(currentSiteUrl?: string) {
+export async function updateAndSendAppState() {
   const seiSites = await getSeiSites();
-  const state: AppState = { seiSites, currentSiteUrl };
+  const currentTab = await getCurrentTabContext();
+  const lastSeiTab = await getLastSeiTabContext();
+  
+  const state: AppState = { 
+    seiSites, 
+    currentTab,
+    lastSeiTab
+  };
+  
+  console.debug('[Painel SEI][Background] sending app:state', state);
   chrome.runtime.sendMessage({ type: 'app:state', state } satisfies Message);
 }
 
@@ -24,13 +33,13 @@ export async function broadcastAppState(currentSiteUrl?: string) {
  * Processa visita/detecção de site SEI (centralizado)
  * - Upsert no storage (normaliza base URL internamente)
  * - Abre side panel se preferido
- * - Broadcast do estado (com reforço após delay para garantir montagem)
  */
 export async function processSeiSiteVisit(tabId: number, url: string, name?: string) {
   try {
     // Garante que só processamos URLs SEI
     if (!isSeiUrl(url)) return;
-    await upsertSeiSite(url, name);
+    await upsertSeiSite(url, name);    
+    setLastSeiTabId(tabId);    
     // Habilita o side panel para a aba
     const sidePanel = (chrome as any).sidePanel;
     try {
@@ -41,8 +50,7 @@ export async function processSeiSiteVisit(tabId: number, url: string, name?: str
       chrome.action?.setBadgeText?.({ text: 'SEI', tabId });
       chrome.action?.setBadgeBackgroundColor?.({ color: '#004C97', tabId });
     } catch {}
-    await broadcastAppState(url);
   } catch (e) {
-    console.debug('[Painel SEI] processSeiSiteVisit skip', e);
+    console.debug('[Painel SEI][Background] processSeiSiteVisit skip', e);
   }
 }

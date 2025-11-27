@@ -6,8 +6,7 @@
  */
 
 import type { Message, AppState, TabContext } from '../../shared/types';
-import { getSeiSites, upsertSeiSite, getCurrentTabContext, setLastSeiTabId, getLastSeiTabContext } from '../../shared/storage';
-import { getSettings } from '../../shared/settings';
+import { getSeiSites, upsertSeiSite, getCurrentTabContext, setLastSeiTabId, getCurrentSeiSiteContextData } from '../../shared/storage';
 import { isSeiUrl } from '../../shared/sei';
 
 /**
@@ -16,13 +15,13 @@ import { isSeiUrl } from '../../shared/sei';
  */
 export async function updateAndSendAppState() {
   const seiSites = await getSeiSites();
-  const currentTab = await getCurrentTabContext();
-  const lastSeiTab = await getLastSeiTabContext();
+  const currentTab = await getCurrentTabContext();  
+  const currentSeiSiteContextData = await getCurrentSeiSiteContextData();
   
   const state: AppState = { 
     seiSites, 
     currentTab,
-    lastSeiTab
+    currentSeiSiteContextData,
   };
   
   console.debug('[Painel SEI][Background] sending app:state', state);
@@ -38,7 +37,7 @@ export async function processSeiSiteVisit(tabId: number, url: string, name?: str
   try {
     // Garante que só processamos URLs SEI
     if (!isSeiUrl(url)) return;
-    await upsertSeiSite(url, name);    
+    await upsertSeiSite(url);    
     setLastSeiTabId(tabId);    
     // Habilita o side panel para a aba
     const sidePanel = (chrome as any).sidePanel;

@@ -33,6 +33,7 @@ export function useAppState(): AppState {
                 ...cur,
                 seiSites: retryRes.seiSites ?? cur.seiSites,
                 currentTab: retryRes.currentTab ?? cur.currentTab,
+                currentSeiSiteContextData: retryRes.currentSeiSiteContextData ?? cur.currentSeiSiteContextData,
               }));
             }
           });
@@ -45,6 +46,7 @@ export function useAppState(): AppState {
           ...currentState,
           seiSites: response.seiSites ?? currentState.seiSites,
           currentTab: response.currentTab ?? currentState.currentTab,
+          currentSeiSiteContextData: response.currentSeiSiteContextData ?? currentState.currentSeiSiteContextData,
         }));
       }
     });

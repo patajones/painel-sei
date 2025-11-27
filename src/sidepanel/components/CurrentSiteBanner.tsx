@@ -16,17 +16,14 @@ import { isSeiUrl } from '../../shared/sei';
 
 interface CurrentSiteBannerProps {
   url: string;
-  sites: SeiSite[];
   area?: string | null;
   usuario?: string | null;
+  processo?: string | null;
   currentIsSei: boolean;
 }
 
-export function CurrentSiteBanner({ url, sites, area, usuario, currentIsSei }: CurrentSiteBannerProps) {
-  // Considera SEI se a URL atual passa na heurística OU já foi registrada em seiSites
-  const isSei = isSeiUrl(url) || sites.some(s => s.url === url);
-  const siteName = sites.find(s => s.url === url)?.name || url;
-
+export function CurrentSiteBanner({ url, area, usuario, processo, currentIsSei }: CurrentSiteBannerProps) {  
+  
   // Handler para ativar a última aba SEI
   function handleActivateLastSeiTab(e: React.MouseEvent) {
     e.preventDefault();
@@ -43,27 +40,25 @@ export function CurrentSiteBanner({ url, sites, area, usuario, currentIsSei }: C
         )}
       </span>
       <span className="current-site-url">
-        {siteName}
+        {url}
       </span>
       {area && (
-        <>
-          <span className="current-site-label">
-            📍 Área:
-          </span>
-          <span className="current-site-area">
-            {area}
-          </span>
-        </>
+        <span style={{ display: 'inline-block', marginRight: 12 }}>
+          <span className="current-site-label">📍 Área:</span>
+          <span className="current-site-area" style={{ marginLeft: 4 }}>{area}</span>
+        </span>
       )}
       {usuario && (
-        <>
-          <span className="current-site-label">
-            👤 Usuário:
-          </span>
-          <span className="current-site-user">
-            {usuario}
-          </span>
-        </>
+        <span style={{ display: 'inline-block', marginRight: 12 }}>
+          <span className="current-site-label">👤 Usuário:</span>
+          <span className="current-site-user" style={{ marginLeft: 4 }}>{usuario}</span>
+        </span>
+      )}
+      {processo && (
+        <span style={{ display: 'inline-block', marginRight: 12 }}>
+          <span className="current-site-label">📄 Processo:</span>
+          <span className="current-site-processo" style={{ marginLeft: 4 }}>{processo}</span>
+        </span>
       )}
     </div>
   );

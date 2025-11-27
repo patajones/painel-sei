@@ -2,8 +2,11 @@
 
 ## O que é o AppState?
 
+`AppState` é a estrutura de dados centralizada que representa o **estado global da extensão** em um determinado momento. Ele é usado para sincronizar informações entre os diferentes componentes da extensão (background, side panel, etc.).
 
-`AppState` é a estrutura de dados centralizada que representa o **estado global da extensão** em um determinado momento. Ele é usado para sincronizar informações entre os diferentes componentes da extensão (background, side panel, etc.). Além do estado da aba corrente, a extensão mantém em memória o contexto da última aba SEI visitada, permitindo fallback e navegação facilitada para o usuário.
+**Sobre o lastSeiTab:**
+Não existe uma variável separada para o contexto da última aba SEI visitada. Todos os contextos de abas são armazenados no `tabContextMap` (um Map em memória indexado por tabId). O lastSeiTab é obtido a partir desse Map, usando o último tabId SEI registrado em memória (`lastSeiTabId`). Assim, o contexto da última aba SEI é sempre recuperado do conjunto de contextos das abas abertas, garantindo que os dados estejam sincronizados e atualizados.
+
 
 ```typescript
 export type AppState = {
@@ -241,8 +244,7 @@ sequenceDiagram
 
     User->>ContentScript: Navega para outro setor
     ContentScript->>ContentScript: Detecta nova área
-    ContentScript->>Background: context:changed (nova área)
-    Background->>Background: updateTabContext(tabId, {area: "NOVA"})
+    ContentScript->>Background: context:changed (nova área)    
     Background->>SidePanel: updateAndSendAppState()
     SidePanel->>SidePanel: Atualiza UI
 ```

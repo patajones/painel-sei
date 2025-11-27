@@ -169,21 +169,25 @@ function injectSeiBarButton() {
 function detectAndNotifySEIContext() {
   // Importa dinamicamente para evitar problemas de ordem
   console.debug('[Painel SEI][ContentScript][detectArea] detectAndNotifyArea called');
-  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl, extractCurrentUser }) => {
+
+  import('../shared/sei').then(({ extractCurrentArea, extractSeiBaseUrl, extractCurrentUser, extractCurrentProcessNumber }) => {
     const area = extractCurrentArea();
     const usuario = extractCurrentUser();
-    const siteUrl = extractSeiBaseUrl(location.href);    
-    
-    console.debug('[Painel SEI][ContentScript][detectArea] area:', area);
-    console.debug('[Painel SEI][ContentScript][detectArea] siteUrl:', siteUrl);
-    console.debug('[Painel SEI][ContentScript][detectArea] usuario:', usuario);
+    const siteUrl = extractSeiBaseUrl(location.href);
+    const processo = extractCurrentProcessNumber();
+
+    console.debug('[Painel SEI][ContentScript] detectAndNotifySEIContext area:', area);
+    console.debug('[Painel SEI][ContentScript] detectAndNotifySEIContext siteUrl:', siteUrl);
+    console.debug('[Painel SEI][ContentScript] detectAndNotifySEIContext usuario:', usuario);
+    console.debug('[Painel SEI][ContentScript] detectAndNotifySEIContext processo:', processo);
 
     if (siteUrl) {
       const msg: Message = {
         type: 'context:changed',
         siteUrl,
         area,
-        usuario
+        usuario,
+        ...(processo ? { processo } : {})
       };
       chrome.runtime.sendMessage(msg);
     }

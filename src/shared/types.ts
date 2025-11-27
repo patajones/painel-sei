@@ -10,10 +10,16 @@
 export type SeiSite = {
   /** URL base do site SEI (ex: https://sei.exemplo.gov.br) */
   url: string;
-  /** Nome do órgão/organização (opcional, extraído do logo) */
+
+  /** Nome do órgão/organização (opcional, legado para compatibilidade de mocks/testes) */
   name?: string;
+
+  /** Último dados de contextos extraídos da aba quando o site foi acessado */
+  lastContextData: TabContext;
+  
   /** Timestamp ISO da primeira vez que o site foi detectado */
   firstDetectedAt: string;
+
   /** Timestamp ISO do último acesso ao site */
   lastVisitedAt: string;
 };
@@ -25,14 +31,15 @@ export type SeiSite = {
 export type TabContext = {
   /** URL base do site SEI da aba (ex: https://sei.exemplo.gov.br) */
   siteUrl: string;
+  name?: string;
   /** Nome da área/setor atual (ex: "SESINF") ou null se não detectada */
-  area: string | null;
+  area: string | null | undefined;
   /** Nome do usuário logado ou null se não detectado */
-  usuario: string | null;
+  usuario: string | null | undefined;
+  /** Número do processo atualmente aberto, se houver */
+  processo?: string | null | undefined;
   /** Timestamp da última atualização deste contexto */
   lastUpdatedAt?: string;
-  // Adicione mais campos aqui conforme necessário:
-  // processo?: string; // número do processo atualmente aberto
   // documento?: string; // ID do documento em visualização
 };
 
@@ -44,8 +51,8 @@ export type AppState = {
   seiSites: SeiSite[];
   /** Contexto completo da aba ativa */
   currentTab?: TabContext;
-  /** Contexto completo da aba SEI (se tiver tido um site SEI aberto) */
-  lastSeiTab?: TabContext;
+  /** Contexto completo do site SEI (se tiver tido um site SEI aberto) */
+  currentSeiSiteContextData?: TabContext;
 };
 
 /**
@@ -53,8 +60,8 @@ export type AppState = {
  * (content script, background, side panel)
  */
 export type Message =
-  /** Notificação do content script: contexto da página mudou (área, usuário, etc.) */
-  | { type: 'context:changed'; siteUrl: string; area: string | null; usuario: string | null }
+  /** Notificação do content script: contexto da página mudou (área, usuário, processo, etc.) */
+  | { type: 'context:changed'; siteUrl: string; area: string | null | undefined; usuario: string | null | undefined; processo?: string | null | undefined }
   /** Solicitação do background para o content script atualizar área/usuário */
   | { type: 'context:request' }
   /** Solicitação de estado atual (usado pelo side panel ao abrir) */

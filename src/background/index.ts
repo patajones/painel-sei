@@ -9,7 +9,7 @@
  */
 
 import type { Message } from '../shared/types';
-import { getSeiSites } from '../shared/storage';
+import { getCurrentSeiSiteContextData, getSeiSites } from '../shared/storage';
 import { isSeiUrl, extractSeiBaseUrl } from '../shared/sei';
 import { processSeiSiteVisit, updateAndSendAppState } from './services/panelService';
 import { getCurrentTabContext, deleteTabContext, setTabContext, getTabContext, getLastSeiTabId } from '../shared/storage';
@@ -48,11 +48,9 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {
       if (typeof lastTabId === 'number') {
         await chrome.tabs.update(lastTabId, { active: true });
         console.debug('[Painel SEI][Background] ativou aba SEI', lastTabId);
-      } else {
-        console.debug('[Painel SEI][Background] nenhum tabId SEI salvo');
       }
     } catch (e) {
-      console.debug('[Painel SEI][Background] erro ao ativar aba SEI', e);
+      console.error('[Painel SEI][Background] erro ao ativar aba SEI', e);
     }
   }
   })();
@@ -76,7 +74,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     // Configura para abrir ao clicar no ícone
     sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   } catch (e) {
-    console.debug('[Painel SEI][Background] setPanelBehavior failed', e);
+    console.error('[Painel SEI][Background] setPanelBehavior failed', e);
   }
 });
 
@@ -96,7 +94,7 @@ chrome.runtime.onStartup?.addListener?.(async () => {
     // Configura para abrir ao clicar no ícone
     sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   } catch (e) {
-    console.debug('[Painel SEI][Background] setPanelBehavior failed', e);
+    console.error('[Painel SEI][Background] setPanelBehavior failed', e);
   }
 });
 
@@ -150,7 +148,8 @@ async function handleTabChangeOrNavigation(tabId: number, url?: string) {
         siteUrl: baseUrl,
         area: existing?.area ?? null,
         usuario: existing?.usuario ?? null,
-      });      
+        processo: existing?.processo ?? null,
+      });
     }
     await updateAndSendAppState();
     // Solicita ao content script que atualize área/usuário
@@ -185,11 +184,12 @@ async function handleContextChanged(msg: Extract<Message, { type: 'context:chang
     usuario: msg.usuario
   });
   
-  // Armazena o contexto da aba em memória
+  // Armazena o contexto da aba em memória, incluindo processo se presente
   setTabContext(tabId, {
     siteUrl: msg.siteUrl,
     area: msg.area,
     usuario: msg.usuario,
+    processo: msg.processo ?? null,
   });
   
   // Faz broadcast do estado atualizado
@@ -204,12 +204,14 @@ async function handleGetState(sendResponse: (response: any) => void) {
   const seiSites = await getSeiSites();
   try {
     const currentTab = await getCurrentTabContext();
+    const currentSeiSiteContextData = await getCurrentSeiSiteContextData();
     sendResponse({ 
       seiSites, 
-      currentTab
+      currentTab,
+      currentSeiSiteContextData,
     });
   } catch (e) {
-    console.debug('[Painel SEI][Background] handleGetState failed', e);
+    console.error('[Painel SEI][Background] handleGetState failed', e);
     sendResponse({ seiSites });
   }
 }
@@ -241,7 +243,7 @@ async function handlePanelOpen(sender: chrome.runtime.MessageSender) {
     
     console.debug('[Painel SEI][Background] sidePanel opened via SEI bar button');
   } catch (e) {
-    console.debug('[Painel SEI][Background] handlePanelOpen failed', e);
+    console.error('[Painel SEI][Background] handlePanelOpen failed', e);
   }
 }
 

@@ -23,6 +23,13 @@ export function isSeiUrl(url: string): boolean {
 }
 
 /**
+ * Retorna true se a URL for reconhecida como SEI por heurística OU já estiver em seiSites.
+ */
+export function isRecognizedSeiUrl(url: string, seiSites: { url: string }[]): boolean {
+  return isSeiUrl(url) || seiSites.some(s => s.url === url);
+}
+
+/**
  * Extrai a URL base de um site SEI
  * Ex: https://sei.example.com/sei/controlador.php?acao=xxx → https://sei.example.com
  */
@@ -43,42 +50,52 @@ export function extractSeiBaseUrl(url: string): string | null {
  * 
  * @returns String com o nome da área/setor ou null se não encontrado
  */
-export function extractCurrentArea(): string | null {
+export function extractCurrentArea(): string | null | undefined {
+
   // Heurística 1: Link padrão com ID lnkInfraUnidade
-  // Busca tanto na versão desktop quanto mobile
-  const unidadeLink = document.querySelector('#lnkInfraUnidade') as HTMLAnchorElement | null;
+  // Aparece na Página principal do SEI
+  const unidadeLink = document.querySelector('#lnkInfraUnidade') as HTMLAnchorElement | undefined;
   if (unidadeLink) {
     const text = unidadeLink.textContent?.trim();
     if (text) {
       return normalizeAreaText(text);
+    } else {
+      //encontrou o elemento, mas não tem texto
+      return null;
+    }    
+  }  
+  //se não encontrou os elementos, retorna undefined, 
+  // que quer dizer que não foi posível determinar a área
+  console.info('[Painel SEI][SEI] extractCurrentArea: não foi possível determinar a área/setor atual');
+  return undefined;
+}
+
+/**
+ * Extrai o número do processo SEI atualmente aberto na aba
+ * Retorna todo o conteúdo do div de localização se a URL indicar processo aberto
+ */
+export function extractCurrentProcessNumber(): string | null | undefined {
+  if (location.search.includes('acao=procedimento_trabalhar')) {
+    const divProc = document.querySelector('#divInfraBarraLocalizacao.infraBarraLocalizacao');
+    if (divProc && divProc.textContent) {
+      return divProc.textContent.trim();
+    } else {
+      return null;
     }
-    
-    // Se não houver texto, tenta obter do título
-    const title = unidadeLink.title?.trim();
-    if (title) {
-      return normalizeAreaText(title);
-    }
-  }
-  
-  // Heurística 2: Elementos com classe ou estrutura conhecida do SEI
-  // Busca por elementos que possam conter o nome da unidade
-  const candidates = [
-    '.infraAcaoBarraConjugada[title]',
-    '[id*="Unidade"][title]',
-    '.infraBarraSistema [title*="Setor"]',
-    '.infraBarraSistema [title*="Seção"]',
-  ];
-  
-  for (const selector of candidates) {
-    const el = document.querySelector(selector);
-    if (el) {
-      const title = el.getAttribute('title')?.trim();
-      if (title && title.length > 0) {
-        return normalizeAreaText(title);
+  } else if (location.search.includes('acao=procedimento_visualizar')) {
+    // Busca apenas dentro do menu de árvore
+    const topMenu = document.querySelector('#topmenu.infraArvore');
+    if (topMenu) {
+      const anchors = Array.from(topMenu.querySelectorAll('a'));
+      for (const a of anchors) {
+        if (a.querySelector('img')) continue; // pula se tem imagem
+        const span = a.querySelector('span');
+        if (span && span.textContent && span.textContent.trim()) {
+          return span.textContent.trim();
+        }
       }
     }
   }
-  
   return null;
 }
 
@@ -104,13 +121,13 @@ function normalizeAreaText(text: string): string {
  * 
  * @returns String com o nome do usuário ou null se não encontrado
  */
-export function extractCurrentUser(): string | null {
-  // Heurística 1: Link com ID lnkUsuarioSistema (mais comum)
-  // Ex: <a id="lnkUsuarioSistema" title="Ricardo Bernardes dos Santos (ricardo.santos/CJF)">
+export function extractCurrentUser(): string | null | undefined {
+  // Heurística 1: Link com ID lnkUsuarioSistema (mais comum)  
   const userLink = document.querySelector('#lnkUsuarioSistema') as HTMLAnchorElement | null;
-  if (userLink) {
+  if (userLink) { 
     // Prioriza o atributo title que contém o nome completo
     const title = userLink.getAttribute('title')?.trim();
+    const text = userLink.textContent?.trim();
     if (title) {
       // Extrai apenas o nome antes do parênteses
       // Ex: "Ricardo Bernardes dos Santos (ricardo.santos/CJF)" → "Ricardo Bernardes dos Santos"
@@ -118,16 +135,14 @@ export function extractCurrentUser(): string | null {
       if (match && match[1]) {
         return normalizeUserText(match[1]);
       }
-    }
-    
-    // Fallback: tenta o textContent se não houver title
-    const text = userLink.textContent?.trim();
-    if (text) {
+    } else if (text) {
       return normalizeUserText(text);
+    } else {
+      return null;
     }
   }  
   
-  return null;
+  return undefined;
 }
 
 /**

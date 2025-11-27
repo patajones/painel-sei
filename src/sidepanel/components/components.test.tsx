@@ -9,8 +9,27 @@ import { SitesList } from './SitesList';
 (globalThis as any).chrome.runtime = (globalThis as any).chrome.runtime || { getURL: vi.fn((p: string) => p) };
 
 const sampleSites = [
-  { url: 'https://sei.example.com', name: 'Órgão Exemplo', firstDetectedAt: '2025-01-01', lastVisitedAt: '2025-01-02' },
-  { url: 'https://sei.outro.gov.br', name: undefined, firstDetectedAt: '2025-02-01', lastVisitedAt: '2025-02-02' },
+  {
+    url: 'https://sei.example.com',
+    name: 'Órgão Exemplo',
+    firstDetectedAt: '2025-01-01',
+    lastVisitedAt: '2025-01-02',
+    lastContextData: {
+      siteUrl: 'https://sei.example.com',
+      area: null,
+      usuario: null
+    }
+  },
+  {
+    url: 'https://sei.outro.gov.br',
+    firstDetectedAt: '2025-02-01',
+    lastVisitedAt: '2025-02-02',
+    lastContextData: {
+      siteUrl: 'https://sei.outro.gov.br',
+      area: null,
+      usuario: null
+    }
+  },
 ];
 
 describe('Side Panel Components', () => {
@@ -24,15 +43,14 @@ describe('Side Panel Components', () => {
   });
 
   it('CurrentSiteBanner mostra ícone, área e usuário quando URL é SEI', () => {
-    render(<CurrentSiteBanner url="https://sei.example.com" sites={sampleSites} area="SESINF" usuario="João Silva" />);
-    expect(screen.getByText(/Site corrente:/)).toBeInTheDocument();
-    expect(screen.getByText('Órgão Exemplo')).toBeInTheDocument();
+    render(<CurrentSiteBanner url="https://sei.example.com" area="SESINF" usuario="João Silva" currentIsSei={true} />);
+    expect(screen.getByText(/Site corrente:/)).toBeInTheDocument();    
     expect(screen.getByText('SESINF')).toBeInTheDocument();
     expect(screen.getByText('João Silva')).toBeInTheDocument();
   });
 
   it('CurrentSiteBanner usa URL quando nome não existe', () => {
-    render(<CurrentSiteBanner url="https://sei.outro.gov.br" sites={sampleSites} area={null} />);
+    render(<CurrentSiteBanner url="https://sei.outro.gov.br" area={null} currentIsSei={true} />);
     expect(screen.getByText('https://sei.outro.gov.br')).toBeInTheDocument();
   });
 

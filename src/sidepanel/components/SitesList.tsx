@@ -31,21 +31,16 @@ export function SitesList({ sites, onNavigate }: SitesListProps) {
           month: '2-digit',
           year: 'numeric',
         });
-        
+        // Prioriza name (órgão), depois nome do contexto, depois fallback
+        const displayName = site.name ?? site.lastContextData?.name ?? 'Site SEI';
         return (
           <li key={site.url} className="site-item">
             <div className="site-info">
-              <div className="site-name">{site.name || 'Site SEI'}</div>
+              <div className="site-name">{displayName}</div>
               <div className="site-url">{site.url}</div>
               <div className="site-dates">Último acesso: {lastVisited}</div>
+              <button className="site-navigate" onClick={() => onNavigate(site.url)}>Acessar</button>
             </div>
-            <button 
-              className="navigate-btn" 
-              onClick={() => onNavigate(site.url)}
-              aria-label={`Navegar para ${site.name || site.url}`}
-            >
-              Acessar
-            </button>
           </li>
         );
       })}

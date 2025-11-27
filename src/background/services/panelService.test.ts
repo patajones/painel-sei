@@ -13,6 +13,9 @@ const sendMessage = vi.fn();
   sidePanel: {
     setOptions: vi.fn().mockResolvedValue(undefined),
   },
+  tabs: {
+    query: vi.fn().mockResolvedValue([{ id: 1 }]),
+  },
 };
 
 describe('panelService', () => {
@@ -45,7 +48,7 @@ describe('panelService', () => {
       const url = 'https://sei.example.com/sei/controlador.php';
       await panelService.processSeiSiteVisit(tabId, url, 'Nome do Órgão');
 
-      expect(upsertSpy).toHaveBeenCalledWith(url, 'Nome do Órgão');
+      expect(upsertSpy).toHaveBeenCalledWith(url);
       expect(chrome.sidePanel.setOptions).toHaveBeenCalledWith({ tabId, path: 'src/sidepanel/index.html', enabled: true });
       expect(chrome.action.setBadgeText).toHaveBeenCalled();
       expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalled();

@@ -6,7 +6,7 @@
  */
 
 import type { SeiSite, TabContext } from './types';
-import { extractSeiBaseUrl, isSeiUrl } from './sei';
+import { extractSeiBaseUrl, isRecognizedSeiUrl, isSeiUrl } from './sei';
 
 // Chave usada no chrome.storage.local para armazenar a lista de sites
 const SITES_KEY = 'seiSites';
@@ -21,47 +21,92 @@ export async function getSeiSites(): Promise<SeiSite[]> {
 }
 
 /**
+ * Recupera os dados do site SEI armazenado
+ * @param seiUrl URL do site SEI
+ * @returns O site SEI correspondente ou undefined se não encontrado
+ */
+export async function findSeiSiteData(seiUrl: string): Promise<SeiSite | undefined> {
+  const baseUrl = extractSeiBaseUrl(seiUrl) || seiUrl;
+  const sites = await getSeiSites();
+  return sites.find(s => s.url === baseUrl);
+}
+
+/**
  * Adiciona um novo site SEI ou atualiza um existente (upsert)
  * - Se o site já existe (mesma URL), atualiza lastVisitedAt e nome (se fornecido)
  * - Se é novo, adiciona à lista com timestamps de criação
  * 
- * @param url - URL base do site SEI (ex: https://sei.exemplo.gov.br)
+ * @param siteUrl - URL base do site SEI (ex: https://sei.exemplo.gov.br)
  * @param name - Nome do órgão/organização (opcional, extraído do logo)
  * @returns Lista atualizada de todos os sites
  */
-export async function upsertSeiSite(url: string, name?: string): Promise<SeiSite[]> {
-  // Se não for uma URL de site SEI, não adiciona
-  const current = await getSeiSites();
-  if (!isSeiUrl(url)) return current;
+export async function upsertSeiSite(siteUrl: string): Promise<SeiSite[]> {
+  let baseUrl = extractSeiBaseUrl(siteUrl) || siteUrl;
+  console.debug('[Painel SEI][Storage] upsertSeiSite', baseUrl);
 
-  // Extrai sempre a baseUrl para evitar duplicidade de subpáginas
-  let baseUrl = extractSeiBaseUrl(url);
-  if (!baseUrl) baseUrl = url;
-  const sites = current;
+  const sites = await getSeiSites();
   const now = new Date().toISOString();
   const existing = sites.find(s => s.url === baseUrl);
 
   if (existing) {
+    console.debug('[Painel SEI][Storage] upsertSeiSite, updating lastContextData', baseUrl);
     existing.lastVisitedAt = now;
-    if (name && !existing.name) existing.name = name;
+    // Garante que lastContextData exista
+    if (!existing.lastContextData) existing.lastContextData = {} as TabContext;
   } else {
-    sites.push({ url: baseUrl, name, firstDetectedAt: now, lastVisitedAt: now });
+    console.debug('[Painel SEI][Storage] upsertSeiSite, adding new site', baseUrl);
+    sites.push({
+      url: baseUrl,
+      firstDetectedAt: now,
+      lastVisitedAt: now,
+      lastContextData: {} as TabContext
+    });
+  }
+
+  // Garante que todos os sites tenham lastContextData
+  for (const site of sites) {
+    if (!site.lastContextData) site.lastContextData = {} as TabContext;
   }
 
   await chrome.storage.local.set({ [SITES_KEY]: sites });
   return sites;
 }
 
-/**
- * Contexto em memória por aba (tabContextMap) e utilitários de estado atual
- *
- * Mantido aqui para centralizar responsabilidades de “estado” da extensão:
- * - Persistência (chrome.storage.local) para metadados de sites SEI
- * - Contexto efêmero por aba (em memória) com site atual e área/setor atual
- *
- * Observação: O contexto por aba não é persistido. Ele é reconstruído conforme o
- * content script detecta a área e envia a mensagem `context:changed`.
- */
+
+export async function updateSeiSiteContext(siteUrl: string, ctx: TabContext): Promise<void> {
+  let baseUrl = extractSeiBaseUrl(siteUrl) || siteUrl;
+  console.debug('[Painel SEI][Storage] updateSeiSiteContext', baseUrl, ctx);
+
+  getSeiSites().then(sites => {
+    const site = sites.find(s => s.url === baseUrl);
+    if (!site) return;
+    if (!site.lastContextData) site.lastContextData = {} as TabContext;
+
+    // Atualiza campos: aceita null só se o tipo permitir
+    for (const key of Object.keys(ctx) as (keyof TabContext)[]) {
+      const value = ctx[key];
+      if (value === undefined) continue;
+
+      // Se value é null, só setar se o tipo aceitar null
+      if (value === null) {
+        // Lista de campos que aceitam null em TabContext
+        if (key === 'area' || key === 'usuario' || key === 'processo') {
+          console.debug(`[Painel SEI][Storage] updateSeiSiteContext set ${key} with null`);
+          site.lastContextData[key] = null;
+        }
+        // Se não aceita null, não faz nada
+        continue;
+      }
+      console.debug(`[Painel SEI][Storage] updateSeiSiteContext set ${key} with value ${value}`);
+      // Para qualquer outro valor, setar normalmente
+      site.lastContextData[key] = value;
+    }
+
+    // Persiste alteração
+    console.debug('[Painel SEI][Storage] persisting sites', baseUrl, ctx);
+    chrome.storage.local.set({ [SITES_KEY]: sites });
+  });
+}
 
 /**
  * Map em memória que armazena o contexto de cada aba do navegador.
@@ -90,25 +135,12 @@ export function getTabContext(tabId: number): TabContext | undefined {
  * Adiciona automaticamente timestamp de atualização
  */
 export function setTabContext(tabId: number, ctx: TabContext): void {
+  console.debug('[Painel SEI][Storage] setTabContext ', tabId, ctx);
   tabContextMap.set(tabId, {
     ...ctx,
     lastUpdatedAt: new Date().toISOString(),
   });
-}
-
-/**
- * Atualiza parcialmente o contexto da aba (merge com contexto existente)
- * Útil para atualizar apenas alguns campos sem sobrescrever o resto
- */
-export function updateTabContext(tabId: number, partial: Partial<TabContext>): void {
-  const existing = tabContextMap.get(tabId);
-  if (existing) {
-    tabContextMap.set(tabId, {
-      ...existing,
-      ...partial,
-      lastUpdatedAt: new Date().toISOString(),
-    });
-  }
+  updateSeiSiteContext(ctx.siteUrl, ctx);
 }
 
 /**
@@ -139,6 +171,26 @@ export async function getCurrentTabContext(): Promise<TabContext | undefined> {
   return getTabContext(activeTab.id);
 }
 
+export async function getCurrentSeiSiteContextData(): Promise<TabContext | undefined> {  
+  const activeTab = await getActiveTab();
+  console.debug('[Painel SEI][Storage] getCurrentSeiSiteContextData called', { activeTab });
+  if (!activeTab?.id) return undefined;
+  const tabContext = getTabContext(activeTab.id);
+
+  console.debug('[Painel SEI][Storage] getCurrentSeiSiteContextData tabContext found', { activeTab, tabContext });
+
+  if (!tabContext?.siteUrl) return undefined;
+
+  if (isRecognizedSeiUrl(tabContext.siteUrl, await getSeiSites())) {
+    const siteData = await findSeiSiteData(tabContext.siteUrl);
+    console.debug('[Painel SEI][Storage] getCurrentSeiSiteContextData siteData found', { activeTab, tabContext, siteData });
+    if (siteData?.lastContextData) {
+      return siteData.lastContextData;
+    }
+  }
+  return undefined;
+}
+
 // Variável em memória para o último tabId SEI
 let lastSeiTabId: number | undefined = undefined;
 
@@ -156,11 +208,3 @@ export function getLastSeiTabId(): number | undefined {
   return lastSeiTabId;
 }
 
-/**
- * Recupera o último tabId SEI detectado da memória
- */
-export async function getLastSeiTabContext(): Promise<TabContext | undefined> {
-  const tabId = await getLastSeiTabId();
-  if (!tabId) return undefined;
-  return getTabContext(tabId);
-}

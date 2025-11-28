@@ -38,20 +38,4 @@ A extensão é composta por três componentes principais que se comunicam via me
 
 ### Fluxo de Dados: Detecção de Contexto
 
-```
-1. Usuário navega → tabs.onUpdated dispara
-2. Background verifica URL → se SEI, salva no storage
-3. Background consulta tabContextMap → se tiver contexto em cache, faz broadcast
-4. Content script executa → detecta área e usuário do DOM
-5. Content script envia context:changed → Background
-6. Background atualiza tabContextMap e faz updateAndSendAppState()
-7. Side Panel recebe app:state e renderiza contexto (área, usuário)
-```
-
-**Por que `tabContextMap` é em memória?**
-- O contexto (área/setor, usuário) é volátil: muda frequentemente durante navegação
-- Cada aba pode estar em um setor diferente, com usuário diferente
-- Não é necessário persistir entre sessões
-- Veja documentação detalhada em [`src/shared/storage.ts`](src/shared/storage.ts)
-
 **Diagrama detalhado**: consulte [`docs/architecture/APP-STATE.md`](docs/architecture/APP-STATE.md)
